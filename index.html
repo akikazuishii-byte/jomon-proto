@@ -31,6 +31,18 @@
   .pin{width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
   .pin.start{background:#13242e}
   .panel.min .body{display:none}
+  .eras{flex-wrap:wrap;gap:6px}
+  .eras label{flex:0 0 100%;margin-bottom:-2px}
+  button.era{display:inline-flex;align-items:center;gap:6px;opacity:.45}
+  button.era.on{opacity:1;background:#fff;color:var(--ink);border-color:#7d7660}
+  .dot{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0003}
+  .k-kyu{background:#6b6f78}.k-jo{background:#a8551b}.k-ya{background:#c2185b}
+  .site{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.45);cursor:pointer}
+  .site.big{width:20px;height:20px;border-width:3px}
+  .site.hidden{display:none}
+  .tags{display:flex;gap:4px;flex-wrap:wrap;margin:2px 0 4px}
+  .tag{font-size:11px;padding:1px 6px;border-radius:6px;color:#fff}
+  .tag.旧{background:#6b6f78}.tag.縄{background:#a8551b}.tag.弥{background:#c2185b}
   #fold{position:absolute;top:10px;right:12px;min-height:30px;padding:2px 10px}
 </style>
 </head>
@@ -40,7 +52,7 @@
 <div class="panel" id="panel">
   <button id="fold" aria-label="パネルをたたむ">たたむ</button>
   <h1>縄文の海 3D地図</h1>
-  <p class="sub">千石・文京まわり｜試作</p>
+  <p class="sub">千石・文京まわり＋東京の主な遺跡｜試作</p>
   <div class="body">
     <div class="row">
       <label for="sea">海面の高さ</label>
@@ -56,8 +68,18 @@
       <input id="ex" type="range" min="1" max="6" step="0.5" value="3">
       <output id="exOut">3倍</output>
     </div>
+    <div class="row eras">
+      <label>遺跡</label>
+      <button class="era on" data-era="旧"><i class="dot k-kyu"></i>旧石器</button>
+      <button class="era on" data-era="縄"><i class="dot k-jo"></i>縄文</button>
+      <button class="era on" data-era="弥"><i class="dot k-ya"></i>弥生</button>
+    </div>
+    <div class="btns">
+      <button id="viewBunkyo">文京区を見る</button>
+      <button id="viewTokyo">東京を広く見る</button>
+    </div>
     <p id="readout">地図をタップすると、その場所の標高が出ます。</p>
-    <p class="note">色分けは「今の標高データで海面を上げた」推定です。下町は地盤沈下と盛土で、縄文時代の地面の高さと違います。スポットの位置と説明は目安で、公開前に一次資料で確認します。地図・標高：国土地理院</p>
+    <p class="note">色分けは「今の標高データで海面を上げた」推定です。下町は地盤沈下と盛土で、縄文時代の地面の高さと違います。遺跡のピンは「文京区遺跡一覧」（2024年3月31日現在）などから。位置は丁目の代表点の目安で、遺跡の範囲そのものではありません。地図・標高：国土地理院</p>
   </div>
 </div>
 
@@ -187,8 +209,111 @@
       .setPopup(new maplibregl.Popup({offset: 12}).setDOMContent(box)).addTo(map);
   }
 
+  // 遺跡（旧石器・縄文・弥生）
+  // 文京区：文京区「文京区遺跡一覧」（2024年3月31日現在）から、旧・縄・弥を含む主な遺跡。
+  //   位置は国土地理院の住所検索で求めた「丁目の代表点」。実際の遺跡の範囲とは違う（目安）。
+  // 東京の主な遺跡：文化遺産オンライン、各区市の資料から。
+  const BK = '文京区「文京区遺跡一覧」（2024年3月31日現在）';
+  const C = {
+    千石1: [139.743622, 35.725834], 千石2: [139.740524, 35.723698], 白山2: [139.748322, 35.717381],
+    白山3: [139.742325, 35.720139], 白山4: [139.746384, 35.7216], 千駄木1: [139.758987, 35.722748],
+    本駒込3: [139.75444, 35.727753], 弥生2: [139.764008, 35.716148], 根津1: [139.762848, 35.718815],
+    小石川3: [139.747864, 35.713135], 小石川4: [139.742691, 35.714264], 大塚5: [139.727295, 35.72279],
+    小日向1: [139.738174, 35.712765], 小日向2: [139.733627, 35.712578], 小日向4: [139.738403, 35.715515],
+    本郷1: [139.756302, 35.705017], 本郷4: [139.755234, 35.709454], 湯島1: [139.764618, 35.701412],
+    湯島4: [139.765457, 35.708893], 春日1: [139.749435, 35.70805]
+  };
+  const sites = [
+    {n: '林町', c: '千石2', a: '千石二丁目', e: '旧縄弥', k: '包蔵地・集落・屋敷', t: '千石の中にも、旧石器・縄文・弥生の暮らしの跡があります。', s: BK},
+    {n: '一行院跡', c: '千石1', a: '千石一丁目', e: '縄', k: '集落・社寺・屋敷', s: BK},
+    {n: '千石一丁目南', c: '千石1', a: '千石一丁目', e: '縄', k: '包蔵地・屋敷', s: BK},
+    {n: '指ヶ谷町', c: '白山2', a: '白山二丁目', e: '縄弥', k: '包蔵地・屋敷', t: '「谷」の付く地名の谷。', s: BK},
+    {n: '戸崎町', c: '白山2', a: '白山二丁目', e: '縄', k: '包蔵地・屋敷', s: BK},
+    {n: '小石川植物園南', c: '白山3', a: '白山三丁目', e: '旧縄弥', k: '包蔵地・屋敷', s: BK},
+    {n: '小石川植物園内貝塚・原町', c: '白山4', a: '白山三・四丁目', e: '旧縄', k: '包蔵地・集落・貝塚・屋敷', s: BK},
+    {n: '原町貝塚', c: '白山4', a: '白山四丁目', e: '縄', k: '貝塚・屋敷', s: BK},
+    {n: '白山御殿町', c: '白山4', a: '白山四丁目', e: '縄弥', k: '集落・屋敷', s: BK},
+    {n: '千駄木貝塚', c: '千駄木1', a: '千駄木一丁目', e: '旧縄弥', k: '集落・貝塚・墓・屋敷', t: '縄文人の人骨がほぼ完全な形で見つかった貝塚（文京ふるさと歴史館）。', s: BK},
+    {n: '動坂', c: '本駒込3', a: '本駒込三・四丁目', e: '旧縄弥', k: '包蔵地・集落・貝塚・屋敷', s: BK},
+    {n: '駒込神明町貝塚', c: '本駒込3', a: '本駒込三〜五丁目', e: '縄', k: '集落・屋敷', s: BK},
+    {n: '向ヶ岡貝塚（弥生二丁目遺跡）', c: '弥生2', a: '弥生二丁目', e: '縄弥', k: '貝塚（国史跡）', big: true,
+      t: '明治17年（1884）、東京大学の坪井正五郎・白井光太郎・有坂鉊蔵が根津の谷に面した貝塚で壺を発見。地名から「弥生式土器」と名付けられ、「弥生時代」の名の元になりました。昭和49年（1974）の発掘で溝・貝層・弥生式土器が見つかり、昭和51年（1976）に「弥生二丁目遺跡」として国の史跡に。ただし最初の発見地点は今も特定されていません。',
+      s: '文京区「弥生式土器ゆかりの地」碑／' + BK},
+    {n: '弥生町貝塚', c: '弥生2', a: '弥生二丁目', e: '縄弥', k: '貝塚', s: BK},
+    {n: '弥生町浅野邸貝塚', c: '根津1', a: '根津一丁目', e: '縄', k: '貝塚', s: BK},
+    {n: '伝通院裏貝塚', c: '小石川3', a: '小石川三丁目', e: '縄弥', k: '包蔵地・集落・貝塚？・社寺・屋敷', s: BK},
+    {n: '久堅町', c: '小石川4', a: '小石川四丁目', e: '縄', k: '貝塚・屋敷', s: BK},
+    {n: '護国寺境内', c: '大塚5', a: '大塚五丁目', e: '縄', k: '包蔵地・社寺', s: BK},
+    {n: '小日向台町南', c: '小日向1', a: '小日向一丁目', e: '旧縄弥', k: '包蔵地・集落・墓・屋敷', s: BK},
+    {n: '小日向二丁目東', c: '小日向2', a: '小日向二丁目', e: '旧縄', k: '包蔵地・集落・屋敷', s: BK},
+    {n: '小日向四丁目貝塚', c: '小日向4', a: '小日向四丁目', e: '縄', k: '貝塚', s: BK},
+    {n: '弓町', c: '本郷1', a: '本郷一丁目', e: '旧縄弥', k: '包蔵地・集落・屋敷', s: BK},
+    {n: '本郷元町', c: '本郷1', a: '本郷一丁目', e: '縄弥', k: '包蔵地・集落・屋敷', s: BK},
+    {n: '真砂町（真砂）', c: '本郷4', a: '本郷四丁目', e: '旧縄弥', k: '集落・屋敷', s: BK},
+    {n: 'お茶の水貝塚', c: '湯島1', a: '湯島一丁目', e: '縄', k: '貝塚', s: BK},
+    {n: '湯島（切通し北）貝塚', c: '湯島4', a: '湯島四丁目', e: '縄', k: '貝塚', s: BK},
+    {n: '春日町（小石川後楽園）', c: '春日1', a: '春日一丁目・後楽一丁目', e: '旧縄弥', k: '包蔵地・集落・屋敷', s: BK},
+    {n: '北野神社', c: '春日1', a: '春日一丁目', e: '弥', k: '包蔵地', s: BK},
+    // 東京の主な遺跡
+    {n: '大森貝塚', ll: [139.731018, 35.595707], a: '品川区大井六丁目（遺跡庭園は大井6-21-6）', e: '縄', k: '貝塚（国史跡）', big: true,
+      t: '明治10年（1877）、アメリカの動物学者エドワード・S・モースが発掘。日本で初めての科学的な発掘で「日本考古学発祥の地」。縄文時代後期〜晩期。昭和30年（1955）に国の史跡。',
+      s: '品川区立品川歴史館の解説'},
+    {n: '中里貝塚', ll: [139.754, 35.7446], a: '北区上中里二丁目', e: '縄', k: '貝塚（国史跡）', big: true,
+      t: '旧東京湾の奥の浜辺にできた、ハマグリとマガキの巨大な貝塚。貝層は最大で厚さ4.5m以上。焼石で湯をわかして貝のむき身を取ったとみられる土坑があり、貝の加工場と考えられています。縄文時代中期中葉〜後期初頭。平成12年（2000）に国の史跡。',
+      s: '文化遺産オンライン／北区教育委員会'},
+    {n: '西ケ原貝塚', ll: [139.740295, 35.744545], a: '北区西ケ原三丁目（丁目の代表点）', e: '縄', k: '貝塚',
+      t: '中里貝塚の西、武蔵野台地の上にある縄文時代中期の貝塚。', s: '文化遺産オンライン（中里貝塚の解説）'},
+    {n: '下野谷遺跡', ll: [139.559937, 35.725151], a: '西東京市東伏見二・三・六丁目', e: '縄', k: '集落（国史跡）', big: true,
+      t: '石神井川を見下ろす台地の先、標高約50m。直径150mの縄文時代中期の環状集落で、谷をはさんだ東集落と「双環状集落」をつくる。南関東最大級。平成27年（2015）に国の史跡。',
+      s: '文化遺産オンライン／西東京市'},
+    {n: '久ヶ原遺跡', ll: [139.691254, 35.585548], a: '大田区久が原（町の代表点）', e: '弥', k: '集落', big: true,
+      t: '弥生時代後期の大集落。南関東の弥生時代後期前葉の基準になる「久ヶ原式土器」の名の元。', s: '大田区立郷土博物館'}
+  ];
+
+  // 同じ丁目に重なるピンを少しずらす
+  const used = {};
+  const siteMarkers = [];
+  const ERA = {旧: '旧石器', 縄: '縄文', 弥: '弥生'};
+  for (const s of sites) {
+    let ll = s.ll || C[s.c];
+    if (s.c) { const i = used[s.c] = (used[s.c] || 0) + 1; if (i > 1) ll = [ll[0] + 0.00045 * Math.cos(i * 2.1), ll[1] + 0.00035 * Math.sin(i * 2.1)]; }
+    const eras = [...s.e];
+    const main = eras.includes('縄') ? '縄' : eras.includes('弥') ? '弥' : '旧';
+    const el = document.createElement('div');
+    el.className = 'site' + (s.big ? ' big' : '');
+    el.style.background = main === '縄' ? '#a8551b' : main === '弥' ? '#c2185b' : '#6b6f78';
+    if (eras.length > 1) el.style.background = `conic-gradient(${eras.map((e, j) => `${e === '旧' ? '#6b6f78' : e === '縄' ? '#a8551b' : '#c2185b'} ${j * 360 / eras.length}deg ${(j + 1) * 360 / eras.length}deg`).join(',')})`;
+    const box = document.createElement('div');
+    const h = document.createElement('h3'); h.textContent = s.n; box.appendChild(h);
+    const tg = document.createElement('div'); tg.className = 'tags';
+    for (const e of eras) { const sp = document.createElement('span'); sp.className = 'tag ' + e; sp.textContent = ERA[e]; tg.appendChild(sp); }
+    box.appendChild(tg);
+    const k = document.createElement('div'); k.textContent = `${s.k}｜${s.a}`; box.appendChild(k);
+    if (s.t) { const p = document.createElement('div'); p.style.marginTop = '4px'; p.textContent = s.t; box.appendChild(p); }
+    const src = document.createElement('div'); src.className = 'src';
+    src.textContent = '出典：' + s.s + (s.c ? '。位置は丁目の代表点（目安）' : '');
+    box.appendChild(src);
+    const m = new maplibregl.Marker({element: el}).setLngLat(ll)
+      .setPopup(new maplibregl.Popup({offset: 10}).setDOMContent(box)).addTo(map);
+    siteMarkers.push({el, eras});
+  }
+  const shown = new Set(['旧', '縄', '弥']);
+  function filterSites() {
+    for (const m of siteMarkers) m.el.classList.toggle('hidden', !m.eras.some(e => shown.has(e)));
+  }
+  for (const b of document.querySelectorAll('button.era')) {
+    b.addEventListener('click', () => {
+      const e = b.dataset.era;
+      if (shown.has(e)) shown.delete(e); else shown.add(e);
+      b.classList.toggle('on', shown.has(e));
+      filterSites();
+    });
+  }
+
   // 操作
   const $ = id => document.getElementById(id);
+  $('viewBunkyo').addEventListener('click', () => map.flyTo({center: [139.752, 35.716], zoom: 14.3, pitch: 62, bearing: -25}));
+  $('viewTokyo').addEventListener('click', () => map.flyTo({center: [139.66, 35.67], zoom: 10.6, pitch: 50, bearing: -15}));
   const readout = $('readout');
   function setSea(v) {
     sea = v; $('sea').value = v; $('seaOut').textContent = v + 'm';
