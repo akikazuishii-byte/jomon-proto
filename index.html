@@ -133,6 +133,10 @@
   #near .item .nm{flex:1}
   #near .item .ds{white-space:nowrap;color:var(--ink2);font-size:12px}
   #near .item .mk{cursor:inherit;flex:0 0 auto}
+  #todoList{max-height:40vh;overflow:auto;margin:6px 0}
+  #todoList summary{font-size:12.5px}
+  #todoList .item,#near .item{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+  #todoList .head{font-size:12px;color:var(--ink2);margin:2px 0}
   #near .head{font-size:12px;color:var(--ink2);margin:2px 0}
   #course .empty{font-size:12px;color:var(--ink2);margin:0 0 6px}
   #course ol{list-style:none;margin:0 0 6px;padding:0}
@@ -215,6 +219,7 @@
           </div>
           <p class="note" id="addHint"></p>
           <input id="addOther" placeholder="坂の名前（一覧にないとき）" style="display:none;width:100%;margin-top:6px;font-size:14px;padding:6px 8px;border:1px solid #C9BD9C;border-radius:8px">
+          <div id="todoList"></div>
           <p class="note" id="addMsg">位置を直すモードにすると、下調べ済みの坂が点線の「候補」として地図に出ます。候補をドラッグして坂の場所に置けば確定です。一覧にない坂は、文京区の坂127か所（坂学会の一覧）から選べます。所在地と坂学会のページで目印を確かめてから「地図をタップして置く」を押し、標識のある場所をタップしてください。置いたあともドラッグで動かせます。</p>
         </div>
         <textarea id="exportBox" style="display:none;width:100%;height:90px;font-size:11px"></textarea>
@@ -448,7 +453,7 @@
   function moveTo(rec, ll, save) {
     rec.ll = ll; rec.marker.setLngLat(ll);
     if (rec.walk && !rec.walk.dataset.fixed) rec.walk.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
-    if (save && rec.added) { rec.added.ll = ll; saveAdded(); if (typeof slopeCheck === 'function') slopeCheck(rec); }
+    if (save && rec.added) { rec.added.ll = ll; rec.added.ok = false; if (rec.okb) rec.okb.textContent = 'この位置で確認した'; saveAdded(); if (typeof slopeCheck === 'function') slopeCheck(rec); }
     else if (save) { fixes[rec.type + '|' + rec.name] = ll; try { localStorage.setItem(FIX_KEY, JSON.stringify(fixes)); } catch (e) {} }
   }
   function applyFixes() { for (const r of allMarkers) { const f = fixes[r.type + '|' + r.name]; if (f) moveTo(r, f, false); } }
@@ -1089,7 +1094,16 @@
     ["rokkakuzaka", "六角坂", "ろっかく", "", "小石川2丁目"]
   ];
   const SAKA_URL = slug => `https://sakagakkai.org/profile/bunkyo/${slug}.html`;
+  // 坂学会の地図リンクから取った位置と上る方向（由来をまだ入れていない坂の分）：名前 → [経度, 緯度, 方向(度) or null]
+  const SAKA_POS = {};
   const sakaInfo = n => SAKA_LIST.find(r => r[1] === n) || SAKA_LIST.find(r => r[1].replace(/（.*?）/, '') === n.replace(/（.*?）/, ''));
+  // 坂の位置・方向・目印をまとめて引く
+  function slopeMeta(n) {
+    const base = n.replace(/（.*?）/, '');
+    const x = SLOPES.find(z => z.n === n || z.n === base);
+    const p = SAKA_POS[n] || SAKA_POS[base];
+    return {x, cs: (x && x.cs) || (p ? [p[0], p[1]] : null), c: x && (x.c || x.ll), dir: x && x.dir != null ? x.dir : p ? p[2] : null, m: x && x.m};
+  }
   // 谷と川の跡
   const VALLEYS = [
     {n: '菊坂の谷', y: 'きくざか', ll: [139.757, 35.7099], p: '本郷四・五丁目の境のあたり', a: '本郷四・五丁目の境（菊坂の通り）',
@@ -1470,7 +1484,8 @@
     document.body.classList.toggle('editing', editing);
     $('addBox').style.display = editing ? 'block' : 'none';
     if (editing) showCands(); else clearCands();
-    for (const r of allMarkers) if (r.del) r.del.style.display = editing ? 'block' : 'none';
+    for (const r of allMarkers) { if (r.del) r.del.style.display = editing ? 'block' : 'none'; if (r.okb) r.okb.style.display = editing ? 'block' : 'none'; }
+    renderTodo();
     // 直すときは、建物や神社の記号まで載った平らな標準地図にする（立体だとずれて見えるため）
     if (map.getLayer('std')) map.setLayoutProperty('std', 'visibility', editing ? 'visible' : 'none');
     for (const id of ['relief', 'shade']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', editing ? 'none' : 'visible');
@@ -1511,7 +1526,7 @@
     if (!rec.chk) return;
     const [lng, lat] = rec.ll, d = 40, dLat = d / 111320, dLng = d / (111320 * Math.cos(lat * Math.PI / 180));
     const h0 = elev({lng, lat});
-    if (h0 == null) { rec.chk.textContent = '標高を読み込み中です。少し待ってからもう一度押してください。'; return; }
+    if (h0 == null) { rec.chk.textContent = '標高を読み込み中です。少し待ってからもう一度押してください。'; rec.status = rec.status || 'unk'; renderTodo(); return; }
     let best = null, all = [];
     for (let i = 0; i < 8; i++) {
       const a = i * Math.PI / 4, h = elev({lng: lng + Math.sin(a) * dLng, lat: lat + Math.cos(a) * dLat});
@@ -1521,27 +1536,34 @@
     if (!best) { rec.chk.textContent = ''; return; }
     const diff = Math.max(...all) - Math.min(...all);
     const k = sakaInfo(rec.name);
-    const x = SLOPES.find(z => z.n === rec.name || z.n === rec.name.replace(/（.*?）/, ''));
+    const x = slopeMeta(rec.name);
     let dirMsg = '';
-    if (x && x.dir != null && diff >= 1.5) {
+    rec.status = diff < 1.5 ? 'ng' : 'nodir';
+    if (x.dir != null && diff >= 1.5) {
       const ang = best.i * 45, dd = Math.abs(((ang - x.dir) % 360 + 540) % 360 - 180);
       const nm = DIRS[Math.round(x.dir / 45) % 8];
+      rec.status = dd <= 45 ? 'ok' : 'ng';
       dirMsg = dd <= 45 ? `坂学会の方向（${nm}のほうへ上る）と合っています。` : `坂学会では${nm}のほうへ上る坂です。向きが違うので、場所がずれているかもしれません。`;
     }
     rec.chk.textContent = diff < 1.5
       ? `自動チェック：この点のまわり約40mはほぼ平らです（高低差 約${diff.toFixed(1)}m）。坂の上か下の平らなところに置いているかもしれません。`
       : `自動チェック：この点は${DIRS[best.i]}の方へ上る斜面です（まわり約40mで高低差 約${diff.toFixed(1)}m、標高データからの目安）。` +
         (dirMsg || (k ? '坂学会のページの「方向」と合っているか見てください。' : ''));
+    renderTodo();
   }
   function placeSlope(item, isNew) {
     const {box, x} = slopeBox(item.n);
     box.appendChild(walkLink(item.ll));
     box.appendChild(el$('div', 'src', (x ? '出典：' + x.s + '。' : '') + (item.src === '坂学会' ? 'しるしの位置は坂学会の地図リンクの位置' : 'しるしの位置は、現地や地図で確かめて置いたもの')));
     const chk = el$('div', 'visit'); box.appendChild(chk);
+    const okb = el$('button', 'add', item.ok ? '確認ずみ（取り消す）' : 'この位置で確認した'); okb.style.display = 'none'; box.appendChild(okb);
     const del = el$('button', 'add', 'このしるしを消す'); del.style.display = 'none';
     box.appendChild(del);
     const rec = addMarker({cls: 'saka', icon: 'saka', ll: item.ll, box, keys: ['谷'], name: item.n, type: '坂'});
-    rec.added = item; rec.del = del; rec.chk = chk;
+    rec.added = item; rec.del = del; rec.chk = chk; rec.okb = okb;
+    okb.addEventListener('click', ev => { ev.stopPropagation(); item.ok = !item.ok; saveAdded();
+      okb.textContent = item.ok ? '確認ずみ（取り消す）' : 'この位置で確認した'; renderTodo(); });
+    if (editing) okb.style.display = 'block';
     rec.el.addEventListener('click', () => slopeCheck(rec));
     rec.marker.setDraggable(editing);
     if (editing) del.style.display = 'block';
@@ -1552,12 +1574,15 @@
   }
   // 位置を直すモードのとき、まだ置いていない坂を「候補」として出す（探しはじめの場所。ドラッグするか「ここで確定」で置く）
   let candMarkers = [];
-  function clearCands() { for (const m of candMarkers) m.remove(); candMarkers = []; }
+  function clearCands() { for (const m of candMarkers) m.remove(); candMarkers = []; if (typeof renderTodo === 'function') renderTodo(); }
   function showCands() {
     clearCands();
     const placed = new Set(added.map(a => a.n));
-    for (const x of SLOPES) {
-      const ll0 = x.cs || x.c || x.ll; if (!ll0 || placed.has(x.n)) continue;
+    const pool = [...SLOPES.map(x => x.n), ...Object.keys(SAKA_POS).filter(n => !SLOPES.some(z => z.n === n || z.n === n.replace(/（.*?）/, '')))];
+    for (const nm of pool) {
+      const meta = slopeMeta(nm), x = meta.x || {n: nm, a: (sakaInfo(nm) || [])[4] ? '文京区' + sakaInfo(nm)[4] : ''};
+      x.cs = meta.cs; x.m = meta.m;
+      const ll0 = meta.cs || meta.c; if (!ll0 || placed.has(x.n)) continue;
       const el = el$('div', 'mk saka cand'); el.innerHTML = iconSvg('saka'); el.appendChild(el$('span', 'lbl', x.n));
       const box = el$('div', 'pop saka');
       box.append(el$('div', 'kind', x.cs ? '坂の候補（坂学会の地図の位置）' : '坂の候補（まだ確かめていない場所）'), el$('h3', null, x.n));
@@ -1571,17 +1596,47 @@
       const confirm = () => {
         const p = m.getLngLat(); m.remove(); candMarkers.splice(candMarkers.indexOf(m), 1);
         const nr = placeSlope({t: '坂', n: x.n, ll: [+p.lng.toFixed(6), +p.lat.toFixed(6)]}, true);
-        slopeCheck(nr); nr.marker.togglePopup(); fillAddNames();
+        slopeCheck(nr); nr.marker.togglePopup(); fillAddNames(); renderTodo();
       };
       ok.addEventListener('click', ev => { ev.stopPropagation(); confirm(); });
       m.on('dragend', confirm);
+      m.slope = x.n; m.hasCs = !!meta.cs;
       candMarkers.push(m);
+    }
+    renderTodo();
+  }
+  // 確認が必要な坂の一覧（押すとその坂へ地図が動く）
+  function renderTodo() {
+    const box = $('todoList'); if (!box) return;
+    box.innerHTML = '';
+    if (!editing) return;
+    const go = (ll, open) => { map.easeTo({center: ll, zoom: Math.max(map.getZoom(), 17), pitch: 0, bearing: 0}); open && open(); };
+    const groups = [
+      ['位置がわからない（地図で探して置く）', candMarkers.filter(m => !m.hasCs).map(m => ({n: m.slope, ll: m.getLngLat().toArray(), open: () => m.togglePopup()}))],
+      ['まだ置いていない候補（坂学会の位置あり）', candMarkers.filter(m => m.hasCs).map(m => ({n: m.slope, ll: m.getLngLat().toArray(), open: () => m.togglePopup()}))],
+      ['向きが合わない・平ら（見直す）', allMarkers.filter(r => r.added && !r.added.ok && r.status === 'ng').map(r => ({n: r.name, ll: r.ll, open: () => { r.marker.togglePopup(); slopeCheck(r); }}))],
+      ['向きのチェックができない（目で確かめる）', allMarkers.filter(r => r.added && !r.added.ok && (r.status === 'nodir' || r.status === 'unk' || !r.status)).map(r => ({n: r.name, ll: r.ll, open: () => { r.marker.togglePopup(); slopeCheck(r); }}))]
+    ];
+    const done = allMarkers.filter(r => r.added && (r.added.ok || r.status === 'ok')).length;
+    box.appendChild(el$('div', 'head', `確認が必要な坂（押すとその坂へ移動）　確認ずみ・向きOK：${done}本`));
+    for (const [title, items] of groups) {
+      if (!items.length) continue;
+      const d = el$('details'); if (title.startsWith('位置') || title.startsWith('向きが')) d.open = true;
+      d.appendChild(el$('summary', null, `${title}：${items.length}本`));
+      for (const it of items) {
+        const b = el$('div', 'item'); b.append(el$('span', 'mk saka'), el$('span', 'nm', it.n));
+        b.firstChild.innerHTML = iconSvg('saka');
+        b.addEventListener('click', () => go(it.ll, it.open));
+        d.appendChild(b);
+      }
+      box.appendChild(d);
     }
   }
   // 坂学会の地図リンクの位置がある候補を、まとめて置いて自動チェックする
   $('bulkBtn').addEventListener('click', () => {
     const placed = new Set(added.map(a => a.n));
-    const todo = SLOPES.filter(x => x.cs && !placed.has(x.n));
+    const names = [...SLOPES.map(x => x.n), ...Object.keys(SAKA_POS)].filter((n, i, a) => a.indexOf(n) === i);
+    const todo = names.map(n => ({n, cs: slopeMeta(n).cs})).filter(x => x.cs && !placed.has(x.n));
     if (!todo.length) { $('addMsg').textContent = '坂学会の位置で置ける候補は、もう残っていません。'; return; }
     const recs = todo.map(x => placeSlope({t: '坂', n: x.n, ll: x.cs, src: '坂学会'}, true));
     showCands(); fillAddNames();
