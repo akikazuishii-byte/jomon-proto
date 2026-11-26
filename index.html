@@ -78,6 +78,7 @@
   .mk.mark svg{width:14px;height:14px;stroke:#3E4446}
   .mk.eki{border-radius:6px}
   #map.far .mk.mark{display:none}
+  a.sakalink{display:inline-block;font-size:11.5px;color:var(--key);margin-top:3px}
   .fixtools{display:none;margin-top:8px;padding-top:4px;border-top:1px dashed var(--line)}
   body.editing .fixtools{display:block}
   .fixtools a.gm{display:block;text-align:center;padding:8px;border-radius:999px;border:1px solid var(--key);color:var(--key);text-decoration:none;font-weight:700;font-size:13px}
@@ -207,8 +208,9 @@
             <select id="addName" style="flex:1;min-width:0;font-size:14px;padding:6px;border:1px solid #C9BD9C;border-radius:8px"></select>
             <button id="addBtn">地図をタップして置く</button>
           </div>
+          <p class="note" id="addHint"></p>
           <input id="addOther" placeholder="坂の名前（一覧にないとき）" style="display:none;width:100%;margin-top:6px;font-size:14px;padding:6px 8px;border:1px solid #C9BD9C;border-radius:8px">
-          <p class="note" id="addMsg">坂の名前を選んで「地図をタップして置く」を押し、標識のある場所をタップしてください。置いたあともドラッグで動かせます。</p>
+          <p class="note" id="addMsg">文京区の坂127か所（坂学会の一覧）から選べます。所在地と坂学会のページで目印を確かめてから「地図をタップして置く」を押し、標識のある場所をタップしてください。置いたあともドラッグで動かせます。</p>
         </div>
         <textarea id="exportBox" style="display:none;width:100%;height:90px;font-size:11px"></textarea>
         <div class="row">
@@ -911,6 +913,135 @@
       t: '坂の上に無縁寺があったから、という説があります。森鷗外の小説『雁』の舞台です。',
       g: '本郷台地の東の縁から、不忍池の低地へ下る坂。不忍池のあたりは、縄文の海の入り江が残った場所と考えられています。', s: '一般に伝わる説'}
   ];
+  // 文京区の坂の一覧（坂学会「東京23区の坂」の文京区の表から：ページ名・坂名・読み・別名・所在地）
+  const SAKA_LIST = [
+    ["aioizaka", "相生坂", "あいおい", "昌平坂", "湯島1丁目（北側に湯島聖堂）"],
+    ["akebonozaka", "曙坂", "あけぼの", "徳永坂", "西片2丁目"],
+    ["atelier", "アトリエ坂", "あとりえ", "", "千駄木3丁目"],
+    ["abumizaka", "鐙坂", "あぶみ", "", "本郷4丁目"],
+    ["aburazaka", "油坂", "あぶら", "揚場坂", "本郷2丁目"],
+    ["amihoshizaka", "網干坂", "あみほし", "網曳坂・氷川坂", "白山3丁目と千石2丁目の間"],
+    ["Araki", "荒木坂", "あらき", "", "小日向1丁目"],
+    ["andozaka", "安藤坂", "あんどう", "網干坂・安藤殿坂", "春日1丁目と2丁目の間"],
+    ["igazaka", "伊賀坂", "いが", "", "白山2丁目（指ヶ谷小前）"],
+    ["ikizaka", "壱岐坂", "いき", "壱岐殿坂・いきどん坂", "本郷1丁目と2丁目の間"],
+    ["ishizaka", "石坂", "いし", "", "西片1丁目"],
+    ["ijinzaka", "異人坂", "いじん", "", "弥生2丁目"],
+    ["ichigyoin", "一行院坂", "いちぎょういん", "", "白山4丁目と千石1丁目の間"],
+    ["inarizaka", "稲荷坂", "いなり", "", "本駒込4丁目と5丁目の間"],
+    ["imaizaka", "今井坂", "いまい", "新坂", "春日2丁目"],
+    ["ushizaka", "牛坂", "うし", "潮見坂・鮫干坂・蠣殻坂", "春日1丁目"],
+    ["Szaka", "Ｓ坂", "えす", "権現坂・新坂", "根津1丁目（根津神社の正門前を上る）"],
+    ["ogyuzaka", "大給坂", "おぎゅう", "", "千駄木2丁目"],
+    ["ochanomizuzaka", "お茶の水坂", "おちゃのみず", "", "本郷1丁目"],
+    ["obake_kaidan", "お化け階段", "おばけかいだん", "", "根津1丁目と弥生2丁目の間"],
+    ["onnazaka", "女坂", "おんな", "天神女坂", "湯島3丁目"],
+    ["gaizaka", "ガイ坂", "がい", "芥坂", "湯島3丁目"],
+    ["kaiunzaka", "開運坂", "かいうん", "", "大塚5丁目と6丁目の間"],
+    ["kaibo", "解剖坂", "かいぼう", "", "千駄木1丁目"],
+    ["kaeruzaka", "蛙坂", "かえる", "復坂", "小日向1丁目"],
+    ["karakasadanizaka", "傘谷坂", "からかさだに", "かさだに", "本郷3丁目と湯島2丁目の間"],
+    ["kikuzaka", "菊坂", "きく", "", "本郷4丁目と5丁目の間"],
+    ["kitune", "きつね坂", "きつね", "", "千駄木3丁目と4丁目の間"],
+    ["kibonosaka", "希望の坂", "きぼうの", "", "大塚5丁目"],
+    ["kyu-higasitomizaka", "旧東富坂", "きゅうひがしとみ", "鳶坂・飛坂", "本郷1丁目"],
+    ["kiyotozaka", "清戸坂", "きよと", "", "目白台2丁目"],
+    ["kirisitan", "切支丹坂", "きりしたん", "幽霊坂", "小日向1丁目"],
+    ["kiritoshizaka", "切通坂", "きりとおし", "", "湯島天神と湯島4丁目の間を西に上る"],
+    ["kingyo", "金魚坂", "きんぎょ", "", "本郷5丁目"],
+    ["kurayami_hakusan", "暗闇坂（白山）", "くらやみ", "", "白山5丁目"],
+    ["kurayami_yayoi", "暗闇坂（弥生町）", "くらやみ", "", "本郷7丁目と弥生2丁目の間"],
+    ["kosinzaka", "庚申坂", "こうしん", "切支丹坂", "春日2丁目と小日向4丁目の間"],
+    ["kozasazaka", "小篠坂", "こざさ", "小笹坂", "大塚5丁目から豊島区雑司が谷1丁目まで"],
+    ["gotenzaka", "御殿坂", "ごてん", "大坂・富士見坂・御殿表門坂", "白山2丁目と3丁目の間（小石川植物園の東）"],
+    ["obusezaka", "小布施坂", "こぶせ", "", "目白台1丁目"],
+    ["kongojizaka", "金剛寺坂", "こんごうじ", "新鳶坂・蝙蝠坂", "春日2丁目"],
+    ["konpira", "金毘羅坂", "こんぴら", "", "本郷1丁目"],
+    ["sagizaka", "鷺坂", "さぎ", "", "小日向2丁目"],
+    ["sanemorizaka", "実盛坂", "さねもり", "貝坂", "湯島3丁目"],
+    ["sanchomezaka", "三丁目坂", "さんちょうめ", "", "音羽1丁目と2丁目の間から目白台3丁目まで"],
+    ["sanbyakuzaka", "三百坂", "さんびゃく", "三貊坂", "小石川3丁目と4丁目の間"],
+    ["siomizaka", "汐見坂", "しおみ", "", "千駄木1丁目と2丁目の間"],
+    ["simizuzaka", "清水坂", "しみず", "", "湯島2丁目と3丁目の間"],
+    ["shakazaka", "釈迦坂", "しゃか", "", "小日向4丁目"],
+    ["jariba", "砂利場坂", "じゃりば", "", "千石3丁目"],
+    ["jumokudanizaka", "樹木谷坂", "じゅもくだに", "地獄谷坂", "湯島1丁目"],
+    ["josinjizaka", "浄心寺坂", "じょうしんじ", "お七坂", "白山1丁目"],
+    ["shoheizaka", "昌平坂", "しょうへい", "昌平脇坂・団子坂", "湯島1丁目"],
+    ["sirasagizaka", "白鷺坂", "しらさぎ", "", "大塚3丁目と4丁目の間"],
+    ["sirohebi", "しろへび坂", "しろへび", "", "千駄木2丁目"],
+    ["fukuyamazaka", "新坂（西片）", "しん", "福山坂", "西片1丁目と2丁目の間"],
+    ["gekizaka", "新坂（本郷1）", "しん", "外記坂", "本郷1丁目"],
+    ["shinzaka-hongo", "新坂（本郷5）", "しん", "", "本郷5丁目と6丁目の間"],
+    ["shin-ikizaka", "新壱岐坂", "しんいき", "", "本郷1丁目"],
+    ["SinTumakoi", "新妻恋坂", "しんつまこい", "", "湯島1丁目と湯島2・3丁目の間を西に上る（蔵前橋通り）"],
+    ["shinmeizaka", "神明坂", "しんめい", "", "本駒込5丁目"],
+    ["zenkojizaka", "善光寺坂", "ぜんこうじ", "信濃坂", "小石川2丁目と3丁目の間"],
+    ["dainitizaka", "大日坂", "だいにち", "八幡坂", "小日向2丁目"],
+    ["tatezumezaka", "立爪坂", "たてづめ", "芥坂", "湯島3丁目（妻恋神社の東側）"],
+    ["tatebezaka", "建部坂", "たてべ", "初音坂", "本郷1丁目と2丁目の間"],
+    ["tadonzaka", "炭団坂", "たどん", "", "本郷4丁目"],
+    ["tanukizaka-bunkyo", "狸坂", "たぬき", "", "千駄木3丁目"],
+    ["dangozaka", "団子坂", "だんご", "潮見坂・千駄木坂・七面坂", "千駄木2丁目と3丁目の間"],
+    ["dandan", "だんだん坂", "だんだん", "", "千駄木1丁目"],
+    ["danpeizaka", "団平坂", "だんぺい", "丹平坂・袖引坂", "小石川5丁目"],
+    ["chuyazaka", "忠弥坂", "ちゅうや", "桜陰坂", "本郷1丁目"],
+    ["tumakoizaka", "妻恋坂", "つまこい", "大超坂・大長坂・大帳坂・大潮坂", "湯島3丁目"],
+    ["teppozaka", "鉄砲坂", "てっぽう", "", "目白台3丁目と関口3丁目の間"],
+    ["otokozaka", "天神石坂", "てんじんいし", "天神男坂", "湯島3丁目"],
+    ["meotozaka", "天神夫婦坂", "てんじんめおと", "天神新坂", "湯島3丁目"],
+    ["dozaka", "動坂", "どう", "不動坂・堂坂", "本駒込4丁目と千駄木4丁目の間"],
+    ["tomizaka", "富坂", "とみ", "西富坂・飛坂", "春日1丁目と小石川2丁目の間"],
+    ["toyosaka", "豊坂", "とよ", "ゆたか坂", "目白台1丁目"],
+    ["toriozaka", "鳥尾坂", "とりお", "", "音羽1丁目と関口3丁目の間"],
+    ["naka-hakusan", "中坂（白山）", "なか", "", "白山1丁目"],
+    ["nakazaka", "中坂（湯島）", "なか", "仲坂", "湯島3丁目"],
+    ["nasinokizaka", "梨木坂", "なしのき", "梨坂・なし坂", "本郷5丁目"],
+    ["nanachome", "七丁目坂", "ななちょうめ", "", "関口3丁目"],
+    ["nekomatazaka", "猫又坂", "ねこまた", "猫股坂・猫狸坂", "千石2丁目と3丁目の間"],
+    ["nezumizaka", "鼠坂", "ねずみ", "", "音羽1丁目と小日向3丁目の間"],
+    ["nedu-uramonzaka", "根津裏門坂", "ねづうらもん", "", "根津1丁目と千駄木2丁目の間"],
+    ["hachimanzaka", "八幡坂", "はちまん", "", "音羽1丁目から小日向2丁目と音羽1丁目の間まで"],
+    ["hattorizaka", "服部坂", "はっとり", "", "小日向1丁目"],
+    ["harimazaka", "播磨坂", "はりま", "桜の坂", "小石川4丁目と5丁目の間"],
+    ["higasitomizaka", "東富坂", "ひがしとみ", "真砂坂・東鳶坂", "本郷1丁目と4丁目の間"],
+    ["hikawazaka", "氷川坂", "ひかわ", "簸川坂", "千石2丁目と白山3丁目の間"],
+    ["hinasi", "日無坂", "ひなし", "東坂", "豊島区高田1丁目と目白台1丁目の間"],
+    ["fukiagezaka", "吹上坂", "ふきあげ", "禿坂", "小石川4丁目"],
+    ["fujizaka", "藤坂", "ふじ", "富士坂・禿坂", "小日向4丁目3と4の間を北東に上る"],
+    ["fujimi-hongo", "富士見坂（本郷）", "ふじみ", "", "本郷2丁目"],
+    ["fujimizaka", "富士見坂（大塚）", "ふじみ", "", "大塚2丁目と5丁目の間"],
+    ["fuzokuyoko", "付属横坂", "ふぞくよこ", "", "大塚1丁目と2丁目の間"],
+    ["henmizaka", "逸見坂", "へんみ", "", "白山4丁目"],
+    ["horizaka", "堀坂", "ほり", "宮内坂・源三坂", "小石川2丁目"],
+    ["honmyojizaka", "本妙寺坂", "ほんみょうじ", "", "本郷4丁目"],
+    ["miokuri", "見送り坂", "みおくり", "", "本郷4丁目"],
+    ["mikaerizaka", "見返り坂", "みかえり", "", "本郷4丁目から5丁目"],
+    ["mikumizaka", "三組坂", "みくみ", "", "湯島3丁目"],
+    ["miyasaka", "宮坂", "みや", "", "豊島区南大塚1丁目と千石3丁目の間"],
+    ["myogazaka", "茗荷坂", "みょうが", "", "小日向4丁目と大塚1丁目の間"],
+    ["muenzaka", "無縁坂", "むえん", "武縁坂・武辺坂", "湯島4丁目と台東区池之端1丁目の間から本郷7丁目と湯島4丁目の間まで"],
+    ["mujina", "むじな坂", "むじな", "狢坂", "千駄木4丁目"],
+    ["munatukizaka", "胸突坂（目白台）", "むなつき", "水神坂", "関口2丁目と目白台1丁目の間を北に上る"],
+    ["munatuki-hakusan", "胸突坂（白山）", "むなつき", "峰月坂・新道坂", "西片2丁目と白山1丁目の間"],
+    ["munatuki-hongo", "胸突坂（本郷）", "むなつき", "菊坂", "本郷5丁目"],
+    ["mejirozaka", "目白坂", "めじろ", "不動坂", "関口2丁目"],
+    ["mejiro-sinzaka", "目白新坂", "めじろしん", "新坂・椿坂", "関口2丁目と3丁目の間"],
+    ["yakan-kohinata", "薬罐坂（小日向）", "やかん", "", "小日向1丁目"],
+    ["yakanzaka", "薬罐坂（目白台）", "やかん", "夜寒坂・やかん坂", "目白台2丁目"],
+    ["yakusizaka", "薬師坂", "やくし", "薬師寺坂・浄雲寺坂・白山坂", "白山1丁目と5丁目の間"],
+    ["yayoizaka", "弥生坂", "やよい", "鉄砲坂", "弥生1丁目と2丁目の間"],
+    ["yurei_josidai", "幽霊坂（女子大）", "ゆうれい", "遊霊坂", "目白台2丁目（日本女子大の西側）"],
+    ["yurei_wakeijuku", "幽霊坂（和敬塾）", "ゆうれい", "", "目白台1丁目（新江戸川公園の西側から和敬塾の西側まで）"],
+    ["yusima", "湯島坂", "ゆしま", "明神坂・本郷坂", "湯島1丁目（本郷通り・旧中山道）"],
+    ["yutatezaka", "湯立坂", "ゆたて", "暗闇坂・湯坂", "小石川5丁目と大塚3丁目の間"],
+    ["yokocho", "横町坂", "よこまち", "", "小日向1丁目"],
+    ["yokomizaka", "横見坂", "よこみ", "横根坂", "湯島2丁目"],
+    ["rengejizaka", "蓮華寺坂", "れんげじ", "蓮花寺坂・御殿裏門坂", "白山2丁目と4丁目の間"],
+    ["rokkakuzaka", "六角坂", "ろっかく", "", "小石川2丁目"]
+  ];
+  const SAKA_URL = slug => `https://sakagakkai.org/profile/bunkyo/${slug}.html`;
+  const sakaInfo = n => SAKA_LIST.find(r => r[1] === n) || SAKA_LIST.find(r => r[1].replace(/（.*?）/, '') === n.replace(/（.*?）/, ''));
   // 谷と川の跡
   const VALLEYS = [
     {n: '菊坂の谷', y: 'きくざか', ll: [139.757, 35.7099], p: '本郷四・五丁目の境のあたり', a: '本郷四・五丁目の境（菊坂の通り）',
@@ -1022,6 +1153,8 @@
       for (const x of ss) {
         const li = el$('li'); li.appendChild(el$('b', null, x.n + (x.y ? `（${x.y}）` : '')));
         li.appendChild(el$('span', 'where', x.a)); li.appendChild(el$('span', null, x.t));
+        const k = sakaInfo(x.n);
+        if (k) { const l = el$('a', 'sakalink', '坂学会のページ'); l.href = SAKA_URL(k[0]); l.target = '_blank'; l.rel = 'noopener'; li.appendChild(l); }
         ul.appendChild(li);
       }
       box.appendChild(ul);
@@ -1306,7 +1439,7 @@
   let added = []; try { added = JSON.parse(localStorage.getItem(ADD_KEY) || '[]'); } catch (e) {}
   function saveAdded() { try { localStorage.setItem(ADD_KEY, JSON.stringify(added)); } catch (e) {} }
   function slopeBox(n) {
-    const x = SLOPES.find(z => z.n === n);
+    const x = SLOPES.find(z => z.n === n || z.n === n.replace(/（.*?）/, ''));
     const box = el$('div', 'pop saka');
     box.appendChild(el$('div', 'kind', '坂'));
     const h = el$('h3', null, n); if (x && x.y) h.appendChild(el$('small', null, x.y)); box.appendChild(h);
@@ -1314,7 +1447,13 @@
       box.appendChild(el$('div', 'meta', x.a));
       box.appendChild(el$('div', 'sub2', '名前の由来')); box.appendChild(el$('p', null, x.t));
       box.appendChild(el$('div', 'sub2', '地形の中のこの坂')); box.appendChild(el$('p', null, x.g));
-    } else box.appendChild(el$('p', null, '由来はこれから調べます。'));
+    } else {
+      const k0 = sakaInfo(n);
+      if (k0) box.appendChild(el$('div', 'meta', '文京区' + k0[4] + (k0[3] ? '／別名 ' + k0[3] : '')));
+      box.appendChild(el$('p', null, '名前の由来は、これから調べてのせます。'));
+    }
+    const k = sakaInfo(n);
+    if (k) { const l = el$('a', 'sakalink', '坂学会のページ（くわしい説明と標識）'); l.href = SAKA_URL(k[0]); l.target = '_blank'; l.rel = 'noopener'; box.appendChild(l); }
     return {box, x};
   }
   function placeSlope(item, isNew) {
@@ -1337,13 +1476,21 @@
   function fillAddNames() {
     const sel = $('addName'); sel.innerHTML = '';
     const placed = new Set(added.map(a => a.n));
-    for (const x of [...SLOPES].sort((a, b) => placed.has(a.n) - placed.has(b.n))) {
-      const o = el$('option', null, x.n + (placed.has(x.n) ? '（置いた）' : '')); o.value = x.n; sel.appendChild(o);
+    const known = new Set(SLOPES.map(x => x.n));
+    const list = [...SAKA_LIST].sort((a, b) => (placed.has(a[1]) - placed.has(b[1])) || ((known.has(b[1].replace(/（.*?）/, '')) ? 1 : 0) - (known.has(a[1].replace(/（.*?）/, '')) ? 1 : 0)) || a[2].localeCompare(b[2], 'ja'));
+    for (const r of list) {
+      const o = el$('option', null, `${r[1]}（${r[4]}）` + (placed.has(r[1]) ? '・置いた' : '')); o.value = r[1]; sel.appendChild(o);
     }
     const o = el$('option', null, 'その他（名前を入れる）'); o.value = ''; sel.appendChild(o);
   }
   fillAddNames();
-  $('addName').addEventListener('change', () => { $('addOther').style.display = $('addName').value ? 'none' : 'block'; });
+  function showAddHint() {
+    const v = $('addName').value; $('addOther').style.display = v ? 'none' : 'block';
+    const k = v && sakaInfo(v), h = $('addHint'); h.innerHTML = '';
+    if (k) { h.append(el$('span', null, `所在地：文京区${k[4]}${k[3] ? '／別名 ' + k[3] : ''}　`));
+      const l = el$('a', 'sakalink', '坂学会のページで目印を見る'); l.href = SAKA_URL(k[0]); l.target = '_blank'; l.rel = 'noopener'; h.appendChild(l); }
+  }
+  $('addName').addEventListener('change', showAddHint); showAddHint();
   let placing = false;
   $('addBtn').addEventListener('click', () => {
     placing = !placing;
