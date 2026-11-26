@@ -608,6 +608,7 @@
     addMarker({cls: ECLS[main] + (s.big ? ' big' : ''), label: eras.join(''), ll, box, keys: eras, name: s.n, type: '遺跡'});
   }
 
+  const slopeRecs = [];
   // 坂と谷（名前の由来と、地形の中での位置づけ）
   for (const g of [...SLOPES.map(x => ({...x, kind: '坂'})), ...VALLEYS.map(x => ({...x, kind: '谷'}))]) {
     const cls = g.kind === '坂' ? 'saka' : 'tani';
@@ -619,9 +620,11 @@
     box.appendChild(el$('p', null, g.t));
     box.appendChild(el$('div', 'sub2', g.kind === '坂' ? '地形の中のこの坂' : 'この谷の地形'));
     box.appendChild(el$('p', null, g.g));
-    box.appendChild(walkLink(g.ll));
-    box.appendChild(el$('div', 'src', '出典：' + g.s + '。位置は' + (g.p || '番地の代表点') + '（目安）'));
-    addMarker({cls, label: g.kind, ll: jitter(g.ll), box, keys: [g.kind], name: g.n, type: g.kind});
+    const hl = el$('p', 'meta'); box.appendChild(hl);
+    const walk = walkLink(g.ll); box.appendChild(walk);
+    const src = el$('div', 'src', '出典：' + g.s + '。位置は' + (g.p || '番地の代表点') + '（目安）'); box.appendChild(src);
+    const rec = addMarker({cls, label: g.kind, ll: jitter(g.ll), box, keys: [g.kind], name: g.n, type: g.kind});
+    if (g.kind === '坂') slopeRecs.push({g, rec, walk, src, hl, ends: null});
   }
 
   function filterMarkers() {
@@ -633,6 +636,7 @@
       if (shown.has(k)) shown.delete(k); else shown.add(k);
       b.classList.toggle('on', shown.has(k));
       filterMarkers();
+      if (k === '坂') setSakaLines(shown.has('坂'));
       if ($('near').childElementCount) showNear();
     });
   }
@@ -736,6 +740,81 @@
   }
   $('nearBtn').addEventListener('click', showNear);
 
+
+  // OpenStreetMapの「名前の付いた坂の道」を読み込んで、坂を線で描き、しるしを坂の真ん中に移す。
+  // 読めなかったときは番地の代表点（目安）のまま。読み込んだ線はこの端末に7日間とっておく。
+  const OSM_KEY = 'jomon_osm_saka_v1';
+  const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+  const OSM_Q = '[out:json][timeout:25];way["highway"]["name"~"坂|階段"](35.695,139.715,35.738,139.775);out tags geom;';
+  async function loadOsmSaka() {
+    try { const c = JSON.parse(localStorage.getItem(OSM_KEY) || 'null'); if (c && Date.now() - c.t < 7 * 864e5) return c.d; } catch (e) {}
+    for (const url of OVERPASS) {
+      try {
+        const res = await fetch(url, {method: 'POST', body: 'data=' + encodeURIComponent(OSM_Q),
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'}});
+        if (!res.ok) continue;
+        const j = await res.json();
+        const d = j.elements.filter(e => e.geometry).map(e => ({names: [e.tags.name, e.tags.alt_name, e.tags.old_name].filter(Boolean).join(';'),
+          c: e.geometry.map(p => [+p.lon.toFixed(6), +p.lat.toFixed(6)])}));
+        try { localStorage.setItem(OSM_KEY, JSON.stringify({t: Date.now(), d})); } catch (e) {}
+        return d;
+      } catch (e) {}
+    }
+    return null;
+  }
+  const lenOf = c => c.slice(1).reduce((s, p, i) => s + distM(c[i], p), 0);
+  function midOf(c) {
+    const half = lenOf(c) / 2; let acc = 0;
+    for (let i = 1; i < c.length; i++) { const d = distM(c[i - 1], c[i]);
+      if (acc + d >= half) { const t = d ? (half - acc) / d : 0; return [c[i - 1][0] + (c[i][0] - c[i - 1][0]) * t, c[i - 1][1] + (c[i][1] - c[i - 1][1]) * t]; }
+      acc += d; }
+    return c[0];
+  }
+  function applyOsm(ways) {
+    const feats = [];
+    for (const r of slopeRecs) {
+      const base = r.g.n.replace(/（.*?）/g, '');
+      // 同じ名前の坂はほかにもあるので、目安の位置から600m以内の道だけを使う
+      const hit = ways.filter(w => w.names.split(';').some(x => x.replace(/\s/g, '') === base) && w.c.some(p => distM(p, r.g.ll) < 600));
+      if (!hit.length) continue;
+      const longest = hit.reduce((a, b) => lenOf(b.c) > lenOf(a.c) ? b : a);
+      const mid = midOf(longest.c);
+      // 坂の両はし：つないだ道の端点のうち、いちばん離れた2点
+      const pts = hit.flatMap(w => [w.c[0], w.c[w.c.length - 1]]);
+      let ends = [pts[0], pts[1]], best = -1;
+      for (const a of pts) for (const b of pts) { const d = distM(a, b); if (d > best) { best = d; ends = [a, b]; } }
+      r.ends = ends; r.len = Math.round(hit.reduce((s, w) => s + lenOf(w.c), 0));
+      r.rec.ll = mid; r.rec.marker.setLngLat(mid);
+      r.walk.href = `https://www.google.com/maps/dir/?api=1&destination=${mid[1].toFixed(6)},${mid[0].toFixed(6)}&travelmode=walking`;
+      r.src.textContent = '出典：' + r.g.s + '。位置と線は OpenStreetMap の道（© OpenStreetMap contributors）';
+      for (const w of hit) feats.push({type: 'Feature', properties: {name: r.g.n}, geometry: {type: 'LineString', coordinates: w.c}});
+    }
+    const data = {type: 'FeatureCollection', features: feats};
+    if (map.getSource('saka')) { map.getSource('saka').setData(data); return feats.length; }
+    map.addSource('saka', {type: 'geojson', data, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'});
+    map.addLayer({id: 'saka-case', type: 'line', source: 'saka', layout: {'line-cap': 'round', 'line-join': 'round'},
+      paint: {'line-color': '#FFFAF0', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 3, 17, 10]}});
+    map.addLayer({id: 'saka-line', type: 'line', source: 'saka', layout: {'line-cap': 'round', 'line-join': 'round'},
+      paint: {'line-color': '#7A5A3A', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1.5, 17, 6]}});
+    return feats.length;
+  }
+  function setSakaLines(on) { for (const id of ['saka-case', 'saka-line']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); }
+  // 坂のしるしを押したら、坂の上と下の標高を出す
+  function sakaHeights(r) {
+    if (!r.ends) { r.hl.textContent = ''; return; }
+    const [a, b] = r.ends.map(p => elev({lng: p[0], lat: p[1]}));
+    if (a == null || b == null) { r.hl.textContent = '坂の上と下の標高を読み込み中です。'; return; }
+    const top = Math.max(a, b), low = Math.min(a, b);
+    r.hl.textContent = `長さ 約${r.len}m｜坂の上 約${top.toFixed(1)}m → 坂の下 約${low.toFixed(1)}m（高低差 約${(top - low).toFixed(1)}m、標高データからの目安）`;
+  }
+  for (const r of slopeRecs) r.rec.el.addEventListener('click', () => sakaHeights(r));
+  map.on('load', async () => {
+    const ways = await loadOsmSaka();
+    if (!ways) return;
+    const n = applyOsm(ways);
+    setSakaLines(shown.has('坂'));
+    console.log('OpenStreetMapから坂の線', n, '本');
+  });
   map.on('click', e => { showHeight(e.lngLat, 'この場所の'); describeTerrain(e.lngLat); });
   geo.on('geolocate', e => {
     here = [e.coords.longitude, e.coords.latitude];
