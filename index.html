@@ -77,7 +77,11 @@
   .mk.mark{width:23px;height:23px;background:#FFFAF0;border-color:#8E8B7C;border-width:1.5px}
   .mk.mark svg{width:14px;height:14px;stroke:#3E4446}
   .mk.eki{border-radius:6px}
-  #map.far .mk.mark,#map.far .mk.saka:not(.cand){display:none}
+  .mk.park{background:#F3F8EC;border-color:#5E8A3E}
+  .mk.park svg{stroke:#4C7A2E;stroke-width:1.9}
+  .mk.park.wide{width:27px;height:27px}
+  .pop.park{border-top-color:#5E8A3E}
+  #map.far .mk.mark,#map.far .mk.park:not(.wide),#map.far .mk.saka:not(.cand){display:none}
   a.sakalink{display:inline-block;font-size:11.5px;color:var(--key);margin-top:3px}
   .fixtools{display:none;margin-top:8px;padding-top:4px;border-top:1px dashed var(--line)}
   body.editing .fixtools{display:block}
@@ -213,6 +217,7 @@
         <button class="chip on" data-key="縄"><span class="mk jo" data-icon="jo"></span>縄文</button>
         <button class="chip on" data-key="弥"><span class="mk ya" data-icon="ya"></span>弥生</button>
         <button class="chip on" data-key="社"><span class="mk jinja" data-icon="jinja"></span>神社</button>
+        <button class="chip on" data-key="園"><span class="mk park" data-icon="park"></span>公園</button>
         <button class="chip on" data-key="目"><span class="mk mark eki" data-icon="eki"></span>駅・学校</button>
         <button class="chip on" data-key="谷"><span class="mk tani" data-icon="tani"></span>谷と坂</button>
       </div>
@@ -448,7 +453,7 @@
   const $ = id => document.getElementById(id);
   // しるしと吹き出しの共通部品
   const allMarkers = [];
-  const shown = new Set(['旧', '縄', '弥', '社', '谷', '目']);
+  const shown = new Set(['旧', '縄', '弥', '社', '谷', '目', '園']);
   const ERA = {旧: '旧石器', 縄: '縄文', 弥: '弥生'};
   const ECLS = {旧: 'kyu', 縄: 'jo', 弥: 'ya'};
   const el$ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -469,6 +474,7 @@
     tani: '<path d="M2.5 5.5 9 15h6l6.5-9.5"/><path d="M7 19c1.7-1.4 3.3-1.4 5 0s3.3 1.4 5 0"/>',
     jinja: '<path d="M3 6.6c3.2 1 14.8 1 18 0M5.2 10h13.6M7.2 7.3V20.5M16.8 7.3V20.5M12 10V7.6"/>',
     eki: '<rect x="6" y="3.5" width="12" height="13" rx="3"/><path d="M6 10h12M9 20l1.5-3.5M15 20l-1.5-3.5"/><circle class="f" cx="9.3" cy="13.3" r="1.1"/><circle class="f" cx="14.7" cy="13.3" r="1.1"/>',
+    park: '<path d="M12 21.5v-7M12 14.5l-3-2.5M12 16.5l3-2.5"/><path d="M12 2.8c3.4 0 5.8 2.7 5.6 5.7 1.4.9 1.9 2.4 1.4 3.9-.6 1.7-2.4 2.6-4.2 2.2H8.2C6.4 15 4.6 14.1 4 12.4c-.5-1.5 0-3 1.4-3.9C5.2 5.5 8.6 2.8 12 2.8Z"/><path d="M8.5 21.5h7"/>',
     gakko: '<path d="M4 20.5V10l8-4.5 8 4.5v10.5M9.5 20.5V15h5v5.5M12 5.5V2.5h3.5"/>',
     story: '<g transform="translate(12 12) scale(1.45) translate(-12.3 -12.6)" stroke-width="1.25"><path d="M12 12.2c.6 0 .9-.5.7-1-.3-.9-1.6-.9-2.2-.1-.8 1-.2 2.6 1.1 3 1.8.6 3.6-.7 3.6-2.6 0-2.4-2.4-4-4.7-3.4-2.9.7-4.2 4-2.8 6.6 1.6 3 5.6 3.9 8.4 2"/></g>',
     start: '<path class="f" d="M8.2 3.5c1.6 0 2.4 2 2.2 4.3l-.3 3.4H6.6l-.6-3C5.6 5.6 6.6 3.5 8.2 3.5ZM6.8 12.6h3.3l-.2 1.7c-.2 1.2-.9 1.9-1.6 1.9S7 15.5 6.9 14.3ZM15.8 8.3c1.6 0 2.6 2.1 2.2 4.3l-.6 3h-3.5l-.3-3.4c-.2-2.3.6-3.9 2.2-3.9ZM14 17h3.3l-.1 1.6c-.1 1.2-.8 1.9-1.6 1.9s-1.4-.7-1.6-1.9Z"/>'
@@ -539,7 +545,7 @@
     al.appendChild(g);
   }
   // 制覇の記録（行ったところ）：この端末に保存。地図のしるしに印、一覧で見返せる
-  const VIS_KEY = 'jomon_visited_v1', VIS_TYPES = ['坂', '神社', '遺跡', '谷', 'スポット'];
+  const VIS_KEY = 'jomon_visited_v1', VIS_TYPES = ['坂', '神社', '遺跡', '谷', 'スポット', '公園'];
   let visited = {}; try { visited = JSON.parse(localStorage.getItem(VIS_KEY) || '{}'); } catch (e) {}
   function setVisited(rec, on, auto) {
     if (on) visited[rec.id] = visited[rec.id] || new Date().toISOString().slice(0, 10); else delete visited[rec.id];
@@ -833,6 +839,49 @@
     box.appendChild(walkLink([lng, lat]));
     box.appendChild(el$('div', 'src', '出典：文京区オープンデータ「区立小学校」「区立中学校」（CC BY 4.0）'));
     addMarker({cls: 'mark gakko', icon: 'gakko', ll: [lng, lat], box, keys: ['目'], name: '文京区立' + n, type: '学校'});
+  }
+  // 公園：文京区オープンデータ「区立公園・児童遊園・遊び場一覧」（CC BY 4.0）の緯度経度と面積。児童遊園は数が多いので入れていない
+  // [名前, 緯度, 経度, 面積㎡, ひとこと]
+  const PARKS = [
+    ["大塚公園",35.723756,139.732258,15377,"大噴水や彫刻があり、図書室もあります。"],["元町公園",35.702267,139.758281,3519,"水の流れを生かした歴史ある公園。2025年に改修されました。"],
+    ["須藤公園",35.726423,139.762697,4824,"滝と池のある日本庭園。崖の地形がよくわかります。"],["駒込公園",35.730609,139.757271,1913],
+    ["新花公園",35.706991,139.766385,1036],["清和公園",35.710122,139.754358,1445],
+    ["白山公園",35.722223,139.750368,1590,"アジサイで知られる公園。2019年に改修されました。"],["江戸川公園",35.710753,139.730818,13204,"神田川ぞいの遊歩道と、台地の斜面の緑が続きます。"],
+    ["大塚窪町公園",35.722183,139.73622,4971],["久堅公園",35.718334,139.741811,939],["竹早公園",35.717058,139.739872,7524],
+    ["窪町東公園",35.71983,139.73842,7559,"彫刻や水車、滝があり、桜も植えられています。"],["大塚仲町公園",35.72096,139.733318,1257],
+    ["富士前公園",35.732237,139.750955,1965],["礫川公園",35.707952,139.751074,9328,"噴水や花壇、珍しい木のある公園です。"],
+    ["切通公園",35.708488,139.766489,2774],["神明公園",35.731354,139.754238,2219],["動坂公園",35.731857,139.756366,2770,"球技ができる公園です。"],
+    ["新大塚公園",35.717377,139.733563,5728],["文京宮下公園",35.730051,139.738792,3538],["神明北公園",35.734292,139.751158,1048],
+    ["お茶の水公園",35.701164,139.766243,1295],["千石公園",35.724723,139.743248,802],
+    ["関口台公園",35.714333,139.728363,5225,"日本庭園と池があり、紅葉も楽しめます。"],["神明都電車庫跡公園",35.733064,139.755051,1905],
+    ["小日向公園",35.711993,139.737338,787],["駕籠町公園",35.728084,139.746384,825],["六義公園",35.731692,139.746498,12187],
+    ["後楽公園",35.706659,139.749001,5768],["千駄木公園",35.728321,139.757698,769],
+    ["教育の森公園",35.72023702,139.7369535,21171,"池や彫刻、林があり、桜も楽しめます。"],["駒込林町公園",35.729014,139.760874,852],
+    ["西片公園",35.714005,139.755472,787],["関口三丁目公園",35.71304,139.729409,874],["春木町公園",35.706667,139.764342,666],
+    ["大塚坂下町公園",35.725609,139.726654,1212],["目白台運動公園",35.7153677,139.7214711,30381,"運動施設や芝生の広場、ドッグランがあります。"],
+    ["井上公園",35.713447,139.747692,595],["丸山新町公園",35.719445,139.753629,610],
+    ["肥後細川庭園",35.713052,139.72188,18546,"池と紅葉の日本庭園。目白台の崖を生かしています。"],["千石緑地",35.72652,139.742625,1243,"雑木林の中を木道が続く緑地です。"],
+    ["本郷給水所公苑",35.703443,139.760328,7880,"バラ園と池があり、神田上水の石垣の跡も残ります。"],["千駄木ふれあいの杜",35.722897,139.759067,1141]
+  ];
+  // 都立の庭園（国土地理院の地名検索の位置）。有料で、開園時間があります
+  const PARKS_TO = [
+    ["六義園",35.7327692,139.7451468,"柳沢吉保がつくった大名庭園。入園は有料で、開園時間があります。"],
+    ["小石川後楽園",35.7054158,139.7495916,"水戸徳川家の大名庭園。入園は有料で、開園時間があります。"]
+  ];
+  for (const [n, lat, lng, area, t] of PARKS) {
+    const box = el$('div', 'pop park'); box.dataset.dest = n + ' 東京都文京区';
+    box.append(el$('div', 'kind', '公園（区立）'), el$('h3', null, n), el$('div', 'meta', '広さ 約' + area.toLocaleString() + '㎡'));
+    if (t) box.appendChild(el$('p', null, t));
+    box.appendChild(walkLink([lng, lat], box.dataset.dest));
+    box.appendChild(el$('div', 'src', '出典：文京区オープンデータ「区立公園・児童遊園・遊び場一覧」（CC BY 4.0）を加工'));
+    addMarker({cls: 'park' + (area >= 7000 ? ' wide' : ''), icon: 'park', ll: [lng, lat], box, keys: ['園'], name: n, type: '公園'});
+  }
+  for (const [n, lat, lng, t] of PARKS_TO) {
+    const box = el$('div', 'pop park'); box.dataset.dest = n;
+    box.append(el$('div', 'kind', '庭園（都立）'), el$('h3', null, n), el$('p', null, t));
+    box.appendChild(walkLink([lng, lat], n));
+    box.appendChild(el$('div', 'src', '位置：国土地理院 地名検索'));
+    addMarker({cls: 'park wide', icon: 'park', ll: [lng, lat], box, keys: ['園'], name: n, type: '公園'});
   }
   // 駅・学校は、ある程度拡大したときだけ出す
   function markZoom() { document.getElementById('map').classList.toggle('far', map.getZoom() < 14.3); }
