@@ -247,10 +247,13 @@
     return ['interpolate', ['linear'], ['elevation'],
       -5, '#163f57',
       sea, '#4f8fb3',
-      sea + 0.01, '#f1e8cc',
-      sea + 6, '#dfcd9a',
-      sea + 14, '#c4ab72',
-      sea + 26, '#9a9a62',
+      sea + 0.01, '#f3ebd2',
+      sea + 2, '#ece0b8',
+      sea + 5, '#e2d09e',
+      sea + 9, '#d4bd84',
+      sea + 14, '#c3a86e',
+      sea + 20, '#aea26a',
+      sea + 28, '#8f9760',
       sea + 40, '#6c7a4c'];
   }
 
@@ -270,11 +273,11 @@
       },
       layers: [
         {id: 'bg', type: 'background', paint: {'background-color': '#eae2cc'}},
-        {id: 'pale', type: 'raster', source: 'pale', paint: {'raster-opacity': 0.55}},
+        {id: 'pale', type: 'raster', source: 'pale', paint: {'raster-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.5, 15, 0.7, 17, 0.92]}},
         {id: 'relief', type: 'color-relief', source: 'reliefSrc',
-          paint: {'color-relief-opacity': 0.72, 'color-relief-color': reliefColors(sea)}},
+          paint: {'color-relief-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.75, 15, 0.55, 17, 0.35], 'color-relief-color': reliefColors(sea)}},
         {id: 'shade', type: 'hillshade', source: 'shadeSrc',
-          paint: {'hillshade-exaggeration': 0.6, 'hillshade-shadow-color': '#3b3424', 'hillshade-highlight-color': '#ffffff'}}
+          paint: {'hillshade-exaggeration': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.75, 17, 0.9], 'hillshade-shadow-color': '#3b3424', 'hillshade-highlight-color': '#ffffff'}}
       ],
       terrain: {source: 'terrainSrc', exaggeration: ex}
     }
