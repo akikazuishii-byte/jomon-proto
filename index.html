@@ -883,6 +883,12 @@
         (course.length > 10 ? '立ち寄り先が多いので、Googleマップで全部入らないことがあります。' : '')));
     }
     const btns = el$('div', 'btns');
+    if (course.length && !here) {
+      const st = el$('button', 'primary', '現在地から出発する');
+      st.addEventListener('click', () => geo.trigger());
+      box.appendChild(el$('p', 'empty', 'スタートは今いる場所です。右上の現在地ボタンか、下のボタンで位置を取ると、今いる場所からの道を描きます。'));
+      box.appendChild(st);
+    }
     if (course.length) {
       const go = el$('a', 'walk', 'このコースで歩く（Googleマップ）'); go.href = courseUrl(); go.target = '_blank'; go.rel = 'noopener';
       box.appendChild(go);
@@ -892,7 +898,7 @@
     }
     for (const c of COURSES) {
       const b = el$('button', null, 'おすすめ：' + c.name);
-      b.addEventListener('click', () => { course = c.ids.map(recById).filter(Boolean); saveCourse(); renderCourse();
+      b.addEventListener('click', () => { course = c.ids.map(recById).filter(Boolean); saveCourse(); renderCourse(); if (!here) geo.trigger();
         const ll = course.map(r => r.ll); map.fitBounds([[Math.min(...ll.map(p => p[0])), Math.min(...ll.map(p => p[1]))],
           [Math.max(...ll.map(p => p[0])), Math.max(...ll.map(p => p[1]))]], {padding: 60, pitch: 55}); });
       btns.appendChild(b);
@@ -903,14 +909,15 @@
   // 道に沿ったルート：OpenStreetMapのデータを使う経路検索（FOSSGISの公開サーバー、徒歩）。
   // 試作向け（利用は控えめに、という決まり）。取れないときは直線の点線。
   const routeCache = {};
-  let routeSeq = 0;
+  let routeSeq = 0, routeFrom = null;
   function setCourseData(coords, onRoad) {
     if (!(map.getSource && map.getSource('course'))) return;
     map.getSource('course').setData({type: 'FeatureCollection', features: coords.length > 1 ? [{type: 'Feature', properties: {road: onRoad ? 1 : 0},
       geometry: {type: 'LineString', coordinates: coords}}] : []});
   }
   async function drawCourseLine() {
-    const pts = course.map(r => r.ll);
+    const pts = (here && course.length ? [here] : []).concat(course.map(r => r.ll));
+    routeFrom = here;
     setCourseData(pts, false);
     if (pts.length < 2) return;
     const key = pts.map(p => p[0].toFixed(5) + ',' + p[1].toFixed(5)).join(';');
@@ -927,13 +934,13 @@
     const sum = document.querySelector('#course .sum');
     if (r) {
       setCourseData(r.c, true);
-      if (sum) sum.textContent = `${course.length}か所・道のり約${(r.d / 1000).toFixed(1)}km、歩いて約${Math.round(r.d / 80)}分（OpenStreetMapのデータによる目安）。` +
+      if (sum) sum.textContent = (routeFrom ? '今いる場所から' : '') + `${course.length}か所・道のり約${(r.d / 1000).toFixed(1)}km、歩いて約${Math.round(r.d / 80)}分（OpenStreetMapのデータによる目安）。` +
         (course.length > 10 ? '立ち寄り先が多いので、Googleマップで全部入らないことがあります。' : '');
     } else if (sum) sum.textContent += '（道のルートが取れなかったので、直線で表示しています）';
   }
   // おすすめコース（スポットの名前で指定）
   const COURSES = [
-    {name: '千石から白山・指ヶ谷・植物園へ', ids: ['スポット|千石', 'スポット|白山神社', '谷|指ヶ谷', '遺跡|指ヶ谷町', 'スポット|小石川植物園', '谷|千川の谷（小石川）']}
+    {name: '白山・指ヶ谷・植物園へ', ids: ['スポット|白山神社', '谷|指ヶ谷', '遺跡|指ヶ谷町', 'スポット|小石川植物園', '谷|千川の谷（小石川）']}
   ];
   try { course = JSON.parse(localStorage.getItem(COURSE_KEY) || '[]').map(recById).filter(Boolean); } catch (e) {}
   renderCourse();
@@ -971,6 +978,7 @@
     const ll = {lng: here[0], lat: here[1]};
     showHeight(ll, '今いる場所の'); describeTerrain(ll);
     if ($('near').childElementCount) showNear();
+    if (course.length && (!routeFrom || distM(routeFrom, here) > 100)) drawCourseLine();
   });
   map.on('error', e => { if (e && e.error && /color-relief/.test(String(e.error.message))) readout.textContent = 'このブラウザでは色分けが表示できません。'; });
 }
