@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>縄文の海 3D地図（試作）</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.16.0/dist/maplibre-gl.css">
+<style>
+  :root{--sea:#2f7fb5;--ink:#13242e;--panel:rgba(251,251,242,.94);--line:#d9d3bd;--accent:#a8551b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:15px/1.5 "Hiragino Sans","Noto Sans JP",system-ui,sans-serif;color:var(--ink);background:#e9e4d2}
+  #map{position:absolute;inset:0}
+  .panel{position:absolute;left:12px;right:12px;bottom:12px;max-width:440px;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:14px 16px 12px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+  .panel h1{font-size:17px;margin:0 0 2px;font-weight:700}
+  .panel .sub{font-size:13px;color:#5b5a4e;margin:0 0 10px}
+  .row{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .row label{flex:0 0 5.5em;font-size:13px}
+  .row input[type=range]{flex:1;height:32px;accent-color:var(--sea)}
+  .row output{flex:0 0 3.6em;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px}
+  button{font:inherit;font-size:13px;min-height:38px;padding:6px 12px;border-radius:9px;border:1px solid #b8b29a;background:#fff;color:var(--ink);cursor:pointer}
+  button.on{background:var(--sea);border-color:var(--sea);color:#fff}
+  #readout{font-size:13px;margin:8px 0 0;min-height:1.5em}
+  #readout b{color:var(--accent)}
+  .note{font-size:11.5px;color:#6b6957;margin:8px 0 0;line-height:1.45}
+  .toggle{position:absolute;right:12px;bottom:12px;display:none}
+  .maplibregl-popup-content{font-size:13px;line-height:1.5;max-width:240px;color:var(--ink)}
+  .maplibregl-popup-content h3{font-size:14px;margin:0 0 4px}
+  .maplibregl-popup-content .src{font-size:11px;color:#777;margin-top:4px}
+  .pin{width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
+  .pin.start{background:#13242e}
+  .panel.min .body{display:none}
+  #fold{position:absolute;top:10px;right:12px;min-height:30px;padding:2px 10px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="panel" id="panel">
+  <button id="fold" aria-label="パネルをたたむ">たたむ</button>
+  <h1>縄文の海 3D地図</h1>
+  <p class="sub">千石・文京まわり｜試作</p>
+  <div class="body">
+    <div class="row">
+      <label for="sea">海面の高さ</label>
+      <input id="sea" type="range" min="0" max="10" step="0.5" value="4">
+      <output id="seaOut">4m</output>
+    </div>
+    <div class="btns">
+      <button id="now">今の海（0m）</button>
+      <button id="jomon" class="on">縄文の海（目安 +4m）</button>
+    </div>
+    <div class="row">
+      <label for="ex">高さの強調</label>
+      <input id="ex" type="range" min="1" max="6" step="0.5" value="3">
+      <output id="exOut">3倍</output>
+    </div>
+    <p id="readout">地図をタップすると、その場所の標高が出ます。</p>
+    <p class="note">色分けは「今の標高データで海面を上げた」推定です。下町は地盤沈下と盛土で、縄文時代の地面の高さと違います。スポットの位置と説明は目安で、公開前に一次資料で確認します。地図・標高：国土地理院</p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@5.16.0/dist/maplibre-gl.js"></script>
+<script>
+{
+  // 国土地理院の標高タイル（PNG）を、MapLibreが読めるTerrarium形式に変換する
+  const GSI = 'https://cyberjapandata.gsi.go.jp/xyz/';
+  const flatTile = (() => { let c; return async () => {
+    if (c) return c.slice(0);
+    const cv = makeCanvas(256, 256), ctx = cv.getContext('2d');
+    ctx.fillStyle = 'rgb(128,0,0)'; ctx.fillRect(0, 0, 256, 256); // 標高0m
+    c = await toBuffer(cv); return c.slice(0);
+  };})();
+
+  function makeCanvas(w, h) {
+    if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+    const c = document.createElement('canvas'); c.width = w; c.height = h; return c;
+  }
+  async function toBuffer(cv) {
+    const blob = cv.convertToBlob ? await cv.convertToBlob({type: 'image/png'})
+      : await new Promise(r => cv.toBlob(r, 'image/png'));
+    return await blob.arrayBuffer();
+  }
+  async function fetchPng(url, signal) {
+    const res = await fetch(url, {signal});
+    if (!res.ok) return null;
+    return await createImageBitmap(await res.blob());
+  }
+
+  maplibregl.addProtocol('gsidem', async (params, abort) => {
+    const [z, x, y] = params.url.replace('gsidem://', '').split('/').map(Number);
+    let bmp = null;
+    try {
+      if (z >= 15) bmp = await fetchPng(`${GSI}dem5a_png/15/${x}/${y}.png`, abort.signal);
+      else bmp = await fetchPng(`${GSI}dem_png/${z}/${x}/${y}.png`, abort.signal);
+    } catch (e) { if (abort.signal.aborted) throw e; }
+    if (!bmp) return {data: await flatTile()};
+
+    const cv = makeCanvas(bmp.width, bmp.height), ctx = cv.getContext('2d');
+    ctx.drawImage(bmp, 0, 0);
+    const img = ctx.getImageData(0, 0, bmp.width, bmp.height), d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = d[i] * 65536 + d[i + 1] * 256 + d[i + 2];
+      let h;
+      if (v === 8388608) h = 0;                 // データなし（海など）
+      else if (v > 8388608) h = (v - 16777216) * 0.01;
+      else h = v * 0.01;
+      const t = h + 32768;
+      d[i] = Math.floor(t / 256);
+      d[i + 1] = Math.floor(t) % 256;
+      d[i + 2] = Math.floor((t - Math.floor(t)) * 256);
+      d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return {data: await toBuffer(cv)};
+  });
+
+  const demSource = () => ({type: 'raster-dem', tiles: ['gsidem://{z}/{x}/{y}'],
+    tileSize: 256, maxzoom: 15, encoding: 'terrarium',
+    attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'});
+
+  // 海面の高さで色を変える（海＝青、陸＝標高ごとの土の色）
+  function reliefColors(sea) {
+    return ['interpolate', ['linear'], ['elevation'],
+      -5, '#0b3d5c',
+      sea, '#3a8cc2',
+      sea + 0.01, '#efe6c4',
+      sea + 6, '#d8c48f',
+      sea + 14, '#b9a466',
+      sea + 26, '#8f9a55',
+      sea + 40, '#5f7440'];
+  }
+
+  let sea = 4, ex = 3;
+
+  const map = new maplibregl.Map({
+    container: 'map',
+    center: [139.748, 35.722], zoom: 14.3, pitch: 62, bearing: -25, maxPitch: 85,
+    style: {
+      version: 8,
+      sources: {
+        pale: {type: 'raster', tiles: [GSI + 'pale/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 18,
+          attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>'},
+        terrainSrc: demSource(),
+        reliefSrc: demSource(),
+        shadeSrc: demSource()
+      },
+      layers: [
+        {id: 'bg', type: 'background', paint: {'background-color': '#e9e4d2'}},
+        {id: 'pale', type: 'raster', source: 'pale', paint: {'raster-opacity': 0.55}},
+        {id: 'relief', type: 'color-relief', source: 'reliefSrc',
+          paint: {'color-relief-opacity': 0.72, 'color-relief-color': reliefColors(sea)}},
+        {id: 'shade', type: 'hillshade', source: 'shadeSrc',
+          paint: {'hillshade-exaggeration': 0.6, 'hillshade-shadow-color': '#3b3424', 'hillshade-highlight-color': '#ffffff'}}
+      ],
+      terrain: {source: 'terrainSrc', exaggeration: ex}
+    }
+  });
+  map.addControl(new maplibregl.NavigationControl({visualizePitch: true}), 'top-right');
+  const geo = new maplibregl.GeolocateControl({positionOptions: {enableHighAccuracy: true}, trackUserLocation: true});
+  map.addControl(geo, 'top-right');
+
+  // スポット（位置は目安。説明は読書メモから。公開前に一次資料で確認）
+  const spots = [
+    {name: '千石', ll: [139.7440, 35.7275], start: true,
+      text: 'スタート地点。本郷台の上。ここから坂を下ると谷へ入ります。'},
+    {name: '白山神社', ll: [139.7517, 35.7225],
+      text: '白山から千石方向へ続く谷（指ヶ谷・鶏声ヶ窪）のそば。', src: '『東京「スリバチ」地形散歩』本郷エリア'},
+    {name: '小石川植物園', ll: [139.7473, 35.7177],
+      text: '小石川の谷。千石の南を流れていた小石川は今は暗渠です。縄文の海がこの谷に入っていたかは標高で確かめます。', src: '『東京「スリバチ」地形散歩』コラム'},
+    {name: '護国寺', ll: [139.7273, 35.7186],
+      text: '境内が縄文の埋蔵文化財包蔵地。前の地下約25mからセイウチの頭骨が見つかっています。', src: '文京区遺跡一覧／貝塚爽平『東京の自然史』'},
+    {name: '根津神社', ll: [139.7607, 35.7203],
+      text: '本郷台の崖下。坂と崖下の世界の舞台。', src: '中沢新一『アースダイバー』第6章'},
+    {name: '五条天神（上野）', ll: [139.7718, 35.7129],
+      text: '上野台の岬のあたり。', src: '中沢新一『アースダイバー』第9章'}
+  ];
+  for (const s of spots) {
+    const el = document.createElement('div');
+    el.className = 'pin' + (s.start ? ' start' : '');
+    const box = document.createElement('div');
+    const h = document.createElement('h3'); h.textContent = s.name; box.appendChild(h);
+    const p = document.createElement('div'); p.textContent = s.text; box.appendChild(p);
+    if (s.src) { const c = document.createElement('div'); c.className = 'src'; c.textContent = '出典：' + s.src; box.appendChild(c); }
+    new maplibregl.Marker({element: el}).setLngLat(s.ll)
+      .setPopup(new maplibregl.Popup({offset: 12}).setDOMContent(box)).addTo(map);
+  }
+
+  // 操作
+  const $ = id => document.getElementById(id);
+  const readout = $('readout');
+  function setSea(v) {
+    sea = v; $('sea').value = v; $('seaOut').textContent = v + 'm';
+    $('now').classList.toggle('on', v === 0);
+    $('jomon').classList.toggle('on', v === 4);
+    if (map.getLayer('relief')) map.setPaintProperty('relief', 'color-relief-color', reliefColors(sea));
+  }
+  $('sea').addEventListener('input', e => setSea(Number(e.target.value)));
+  $('now').addEventListener('click', () => setSea(0));
+  $('jomon').addEventListener('click', () => setSea(4));
+  $('ex').addEventListener('input', e => {
+    ex = Number(e.target.value); $('exOut').textContent = ex + '倍';
+    map.setTerrain({source: 'terrainSrc', exaggeration: ex});
+  });
+  $('fold').addEventListener('click', () => {
+    const p = $('panel'); p.classList.toggle('min');
+    $('fold').textContent = p.classList.contains('min') ? 'ひらく' : 'たたむ';
+  });
+
+  function showHeight(ll, label) {
+    const raw = map.queryTerrainElevation(ll);
+    if (raw == null) { readout.textContent = '標高を読み込み中です。少し待ってからもう一度どうぞ。'; return; }
+    const h = raw / ex; // 返り値は強調の倍率がかかっているので戻す
+    const diff = h - sea;
+    readout.innerHTML = '';
+    const b = document.createElement('b');
+    b.textContent = `${label}標高 約${h.toFixed(1)}m`;
+    readout.appendChild(b);
+    readout.appendChild(document.createTextNode(
+      diff <= 0 ? `　→ 海面${sea}mのとき、ここは海の中（水深 約${(-diff).toFixed(1)}m）`
+                : `　→ 海面${sea}mの海より 約${diff.toFixed(1)}m 高い陸`));
+  }
+  map.on('click', e => showHeight(e.lngLat, 'この場所の'));
+  geo.on('geolocate', e => showHeight({lng: e.coords.longitude, lat: e.coords.latitude}, '今いる場所の'));
+  map.on('error', e => { if (e && e.error && /color-relief/.test(String(e.error.message))) readout.textContent = 'このブラウザでは色分けが表示できません。'; });
+}
+</script>
+</body>
+</html>
