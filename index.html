@@ -59,17 +59,22 @@
   .note{font-size:11px;color:#6E6A58;margin:8px 0 0;line-height:1.5}
   details summary{cursor:pointer;font:700 13px/1.4 var(--serif);color:var(--sub);letter-spacing:.08em;padding:4px 0}
   /* しるし（ピン）：色だけでなく文字でも区別する */
-  .mk{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 5px;
-    border-radius:12px;font:700 12px/1 var(--serif);color:#fff;border:2px solid #FFFAF0;
-    box-shadow:0 1px 4px rgba(31,42,46,.4);cursor:pointer;white-space:nowrap;letter-spacing:.02em}
-  .mk.kyu{background:var(--kyu);border-radius:4px}
+  .mk{position:relative;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+    border-radius:50%;color:#fff;border:2px solid #FFFAF0;box-shadow:0 1px 4px rgba(31,42,46,.4);cursor:pointer}
+  .mk svg{width:17px;height:17px;display:block;fill:none;stroke:#fff;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .mk svg .f{fill:#fff;stroke:none}
+  .mk .dots{position:absolute;right:-5px;bottom:-4px;display:flex;gap:1px}
+  .mk .dots i{width:9px;height:9px;border-radius:50%;border:1.5px solid #FFFAF0;display:block}
+  .mk .dots i.kyu{background:var(--kyu)}.mk .dots i.jo{background:var(--jo)}.mk .dots i.ya{background:var(--ya)}
+  .mk.kyu{background:var(--kyu);border-radius:7px}
   .mk.jo{background:var(--jo)}
-  .mk.ya{background:var(--ya);border-radius:7px}
-  .mk.saka{background:var(--saka);border-radius:4px 12px 4px 12px}
-  .mk.tani{background:var(--tani);border-radius:12px 12px 12px 3px}
-  .mk.story{background:var(--key);border-color:var(--gold);min-width:28px;height:28px;font-size:13px}
+  .mk.ya{background:var(--ya)}
+  .mk.saka{background:var(--saka);border-radius:7px}
+  .mk.tani{background:var(--tani);border-radius:7px}
+  .mk.story{background:var(--key);border-color:var(--gold);width:32px;height:32px}
   .mk.start{background:var(--ink);border-color:var(--gold)}
-  .mk.big{height:30px;min-width:30px;font-size:14px;padding:0 7px;border:3px solid var(--gold)}
+  .mk.big{width:36px;height:36px;border:3px solid var(--gold)}
+  .mk.big svg{width:21px;height:21px}
   .mk.hidden{display:none}
   /* 吹き出し */
   .maplibregl-popup-content{font-size:13px;line-height:1.6;color:var(--ink);background:#FFFCF4;border-radius:12px;padding:0;
@@ -132,11 +137,11 @@
     <section>
       <h2>地図に出すもの</h2>
       <div class="chips">
-        <button class="chip on" data-key="旧"><span class="mk kyu">旧</span>旧石器</button>
-        <button class="chip on" data-key="縄"><span class="mk jo">縄</span>縄文</button>
-        <button class="chip on" data-key="弥"><span class="mk ya">弥</span>弥生</button>
-        <button class="chip on" data-key="坂"><span class="mk saka">坂</span>坂の名前</button>
-        <button class="chip on" data-key="谷"><span class="mk tani">谷</span>谷と川の跡</button>
+        <button class="chip on" data-key="旧"><span class="mk kyu" data-icon="kyu"></span>旧石器</button>
+        <button class="chip on" data-key="縄"><span class="mk jo" data-icon="jo"></span>縄文</button>
+        <button class="chip on" data-key="弥"><span class="mk ya" data-icon="ya"></span>弥生</button>
+        <button class="chip on" data-key="坂"><span class="mk saka" data-icon="saka"></span>坂の名前</button>
+        <button class="chip on" data-key="谷"><span class="mk tani" data-icon="tani"></span>谷と川の跡</button>
       </div>
     </section>
     <section>
@@ -289,13 +294,27 @@
     a.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
     a.target = '_blank'; a.rel = 'noopener'; return a;
   }
-  function addMarker({cls, label, ll, box, keys, name, type}) {
-    const el = el$('div', 'mk ' + cls, label);
+  // しるしの絵（白い線画）。旧石器＝尖頭器（石の槍先）、縄文＝縄文土器（炎のような口の深鉢）、弥生＝壺、
+  // 坂＝斜面と石段、谷＝谷と流れ、物語＝渦巻き、スタート＝足あと
+  const ICON = {
+    kyu: '<path d="M12 2.5 17 11 12 21.5 7 11Z"/><path d="M12 6v12M9.5 9.5 12 11l2.5-1.5M9.5 13.5 12 15l2.5-1.5"/>',
+    jo: '<path d="M5.5 8C6.5 4.5 8.5 4.5 9.5 7 10.5 3.5 13.5 3.5 14.5 7 15.5 4.5 17.5 4.5 18.5 8L16 20.5H8Z"/><path d="M7.5 12h9M8 15.5l2 1.5 2-1.5 2 1.5 2-1.5"/>',
+    ya: '<path d="M9.5 3.5h5M10.5 3.5v2.5C6.5 8 5.5 11 6 14c.6 4 3.2 6.5 6 6.5s5.4-2.5 6-6.5c.5-3-.5-6-4.5-8V3.5"/><path d="M7 11.5h10"/>',
+    saka: '<path class="f" d="M3 20 21 20 21 6Z" opacity=".35"/><path d="M3 20 21 6M8 16.1v-2.2M12.5 12.6v-2.2M17 9.1V6.9"/>',
+    tani: '<path d="M2.5 5.5 9 15h6l6.5-9.5"/><path d="M7 19c1.7-1.4 3.3-1.4 5 0s3.3 1.4 5 0"/>',
+    story: '<g transform="translate(12 12) scale(1.45) translate(-12.3 -12.6)" stroke-width="1.25"><path d="M12 12.2c.6 0 .9-.5.7-1-.3-.9-1.6-.9-2.2-.1-.8 1-.2 2.6 1.1 3 1.8.6 3.6-.7 3.6-2.6 0-2.4-2.4-4-4.7-3.4-2.9.7-4.2 4-2.8 6.6 1.6 3 5.6 3.9 8.4 2"/></g>',
+    start: '<path class="f" d="M8.2 3.5c1.6 0 2.4 2 2.2 4.3l-.3 3.4H6.6l-.6-3C5.6 5.6 6.6 3.5 8.2 3.5ZM6.8 12.6h3.3l-.2 1.7c-.2 1.2-.9 1.9-1.6 1.9S7 15.5 6.9 14.3ZM15.8 8.3c1.6 0 2.6 2.1 2.2 4.3l-.6 3h-3.5l-.3-3.4c-.2-2.3.6-3.9 2.2-3.9ZM14 17h3.3l-.1 1.6c-.1 1.2-.8 1.9-1.6 1.9s-1.4-.7-1.6-1.9Z"/>'
+  };
+  const iconSvg = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
+  for (const m of document.querySelectorAll('[data-icon]')) m.innerHTML = iconSvg(m.dataset.icon);
+  function addMarker({cls, icon, dots, ll, box, keys, name, type}) {
+    const el = el$('div', 'mk ' + cls);
+    el.innerHTML = iconSvg(icon) + (dots && dots.length ? '<span class="dots">' + dots.map(d => `<i class="${d}"></i>`).join('') + '</span>' : '');
     el.setAttribute('role', 'button'); el.setAttribute('aria-label', name);
     const popup = new maplibregl.Popup({offset: 14, maxWidth: '300px'}).setDOMContent(box);
     const marker = new maplibregl.Marker({element: el}).setLngLat(ll).setPopup(popup).addTo(map);
     el.addEventListener('click', () => { const p = {lng: ll[0], lat: ll[1]}; showHeight(p, name + 'の'); describeTerrain(p); });
-    const rec = {el, ll, name, keys, marker, cls, label, type};
+    const rec = {el, ll, name, keys, marker, cls, type};
     allMarkers.push(rec); return rec;
   }
   for (const s of spots) {
@@ -303,7 +322,7 @@
     box.append(el$('div', 'kind', s.start ? 'スタート地点' : '物語のスポット'), el$('h3', null, s.name), el$('p', null, s.text));
     box.appendChild(walkLink(s.ll));
     if (s.src) box.appendChild(el$('div', 'src', '出典：' + s.src));
-    addMarker({cls: s.start ? 'story start' : 'story', label: s.start ? '始' : '話', ll: s.ll, box, keys: null, name: s.name, type: 'スポット'});
+    addMarker({cls: s.start ? 'story start' : 'story', icon: s.start ? 'start' : 'story', ll: s.ll, box, keys: null, name: s.name, type: 'スポット'});
   }
 
   // 遺跡（旧石器・縄文・弥生）
@@ -605,7 +624,7 @@
     }
     box.appendChild(walkLink(ll));
     box.appendChild(el$('div', 'src', '出典：' + s.s + (s.c ? '。位置は丁目の代表点（目安）' : '')));
-    addMarker({cls: ECLS[main] + (s.big ? ' big' : ''), label: eras.join(''), ll, box, keys: eras, name: s.n, type: '遺跡'});
+    addMarker({cls: ECLS[main] + (s.big ? ' big' : ''), icon: ECLS[main], dots: eras.filter(e => e !== main).map(e => ECLS[e]), ll, box, keys: eras, name: s.n, type: '遺跡'});
   }
 
   const slopeRecs = [];
@@ -623,7 +642,7 @@
     const hl = el$('p', 'meta'); box.appendChild(hl);
     const walk = walkLink(g.ll); box.appendChild(walk);
     const src = el$('div', 'src', '出典：' + g.s + '。位置は' + (g.p || '番地の代表点') + '（目安）'); box.appendChild(src);
-    const rec = addMarker({cls, label: g.kind, ll: jitter(g.ll), box, keys: [g.kind], name: g.n, type: g.kind});
+    const rec = addMarker({cls, icon: cls, ll: jitter(g.ll), box, keys: [g.kind], name: g.n, type: g.kind});
     if (g.kind === '坂') slopeRecs.push({g, rec, walk, src, hl, ends: null});
   }
 
@@ -732,7 +751,7 @@
     for (const {m, d} of list) {
       const it = el$('div', 'item');
       const min = Math.max(1, Math.round(d * 1.3 / 80));
-      it.append(el$('span', 'mk ' + m.cls.replace(' big', ''), m.label), el$('span', 'nm', m.name),
+      it.append((() => { const c = m.el.cloneNode(true); c.className = 'mk ' + m.cls.replace(' big', ''); c.removeAttribute('role'); return c; })(), el$('span', 'nm', m.name),
         el$('span', 'ds', (d < 1000 ? `${Math.round(d / 10) * 10}m` : `${(d / 1000).toFixed(1)}km`) + `・徒歩約${min}分`));
       it.addEventListener('click', () => { map.flyTo({center: m.ll, zoom: 16.2, pitch: 60}); if (!m.marker.getPopup().isOpen()) m.marker.togglePopup(); });
       box.appendChild(it);
