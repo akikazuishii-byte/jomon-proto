@@ -31,6 +31,16 @@
   .pin{width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
   .pin.start{background:#13242e}
   .panel.min .body{display:none}
+  .sub2{font-size:12px;font-weight:700;margin:8px 0 2px;color:#5b5a4e}
+  ul.life{margin:0;padding-left:1.1em;font-size:12.5px}
+  ul.life li{margin:1px 0}
+  a.walk{display:inline-block;margin-top:8px;padding:6px 10px;border-radius:8px;background:var(--sea);color:#fff;text-decoration:none;font-size:13px}
+  #near{max-height:34vh;overflow:auto}
+  #near .item{display:flex;justify-content:space-between;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+  #near .item span:last-child{white-space:nowrap;color:#5b5a4e}
+  #near .head{font-size:12px;color:#5b5a4e;margin:6px 0 2px}
+  #terrain{font-size:13px;margin:4px 0 0;line-height:1.5}
+  .body{max-height:70vh;overflow:auto}
   .eras{flex-wrap:wrap;gap:6px}
   .eras label{flex:0 0 100%;margin-bottom:-2px}
   button.era{display:inline-flex;align-items:center;gap:6px;opacity:.45}
@@ -77,8 +87,11 @@
     <div class="btns">
       <button id="viewBunkyo">文京区を見る</button>
       <button id="viewTokyo">東京を広く見る</button>
+      <button id="nearBtn">近くの遺跡</button>
     </div>
-    <p id="readout">地図をタップすると、その場所の標高が出ます。</p>
+    <div id="near"></div>
+    <p id="readout">地図をタップすると、その場所の標高と地形（谷・坂・台地）の説明が出ます。</p>
+    <p id="terrain"></p>
     <p class="note">色分けは「今の標高データで海面を上げた」推定です。下町は地盤沈下と盛土で、縄文時代の地面の高さと違います。遺跡のピンは「文京区遺跡一覧」（2024年3月31日現在）などから。位置は丁目の代表点の目安で、遺跡の範囲そのものではありません。地図・標高：国土地理院</p>
   </div>
 </div>
@@ -363,6 +376,41 @@
       t: '弥生時代後期の大集落。南関東の弥生時代後期前葉の基準になる「久ヶ原式土器」の名の元。', s: '大田区立郷土博物館'}
   ];
 
+  // 見つかった物・遺構から「ここでの暮らし」を言葉にする（一般的な考古学の解釈。遺跡ごとの断定ではない）
+  const LIFE = [
+    [/ナイフ形石器|尖頭器|細石刃|細石器|角錐状石器|台形様?石器|石器ブロック|礫群/, '旧石器時代の人が、石のナイフや槍で狩りをしていた（礫群は焼けた石で料理した跡と考えられています）'],
+    [/住居/, '竪穴住居を建てて暮らしていた'],
+    [/環濠/, 'ムラのまわりに堀をめぐらせていた（弥生時代の環濠集落）'],
+    [/貝塚|貝層/, '海や干潟で貝をとって食べていた（貝塚は食べた貝の殻などを捨てた場所。近くまで海が来ていたしるし）'],
+    [/落し穴/, 'シカやイノシシを落とし穴で捕まえていた'],
+    [/炉穴|集石|焼土|焼石/, '火をたいて料理をしていた'],
+    [/石鏃|石槍/, '弓矢や槍で狩りをしていた（石鏃は矢の先）'],
+    [/打製石斧/, '打製石斧で土を掘り、ヤマイモなどの根を掘っていたと考えられる'],
+    [/磨製石斧/, '磨製石斧で木を切っていた'],
+    [/石皿|磨石|凹石|敲石/, '石皿と磨石で、ドングリやクルミなどの木の実をすりつぶしていた'],
+    [/土錘|石錘|土器片錘/, '網を使って魚をとっていた（網のおもり）'],
+    [/土偶|土版/, '土偶などで祈りやまじないをしていた'],
+    [/石棒|石剣/, '石棒を使ったまつりをしていた'],
+    [/耳飾|玦状|勾玉|管玉|ガラス小玉|玉類|垂飾/, '耳飾りや玉で身を飾っていた'],
+    [/炭化米/, '米を食べていた（炭になった米が出ている）'],
+    [/黒曜石/, '遠くの産地から運ばれた黒曜石を使っていた'],
+    [/墓|人骨/, '亡くなった人を葬っていた'],
+    [/丸木船|丸木舟/, '丸木舟で水の上を行き来していた'],
+    [/加工場|むき身/, '貝をまとめて加工していた']
+  ];
+  function explainSite(s, eras) {
+    const hay = `${s.k || ''}。${s.t || ''}`;
+    const out = [];
+    for (const [re, text] of LIFE) if (re.test(hay)) out.push(text);
+    if (!out.length) {
+      if (/集落/.test(hay)) out.push('ムラがあった場所');
+      if (/包蔵地|散布地/.test(hay)) out.push('土器や石器が土の中に眠っている場所として登録されている（くわしい発掘はこれからの場所も多い）');
+      if (eras.includes('縄')) out.push('縄文土器で煮炊きをしていた');
+      if (eras.includes('弥')) out.push('弥生土器を使い、米づくりも始まっていた時代');
+    }
+    return out;
+  }
+
   // 同じ丁目に重なるピンを少しずらす
   const used = {};
   const siteMarkers = [];
@@ -383,12 +431,23 @@
     box.appendChild(tg);
     const k = document.createElement('div'); k.textContent = `${s.k}｜${s.a}`; box.appendChild(k);
     if (s.t) { const p = document.createElement('div'); p.style.marginTop = '4px'; p.textContent = s.t; box.appendChild(p); }
+    const life = explainSite(s, eras);
+    if (life.length) {
+      const hh = document.createElement('div'); hh.className = 'sub2'; hh.textContent = 'ここでの暮らし（見つかった物からの推定）'; box.appendChild(hh);
+      const ul = document.createElement('ul'); ul.className = 'life';
+      for (const x of life) { const li = document.createElement('li'); li.textContent = x; ul.appendChild(li); }
+      box.appendChild(ul);
+    }
+    const walk = document.createElement('a'); walk.className = 'walk';
+    walk.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
+    walk.target = '_blank'; walk.rel = 'noopener'; walk.textContent = 'ここまで歩く（Googleマップ）';
+    box.appendChild(walk);
     const src = document.createElement('div'); src.className = 'src';
     src.textContent = '出典：' + s.s + (s.c ? '。位置は丁目の代表点（目安）' : '');
     box.appendChild(src);
-    const m = new maplibregl.Marker({element: el}).setLngLat(ll)
-      .setPopup(new maplibregl.Popup({offset: 10}).setDOMContent(box)).addTo(map);
-    siteMarkers.push({el, eras});
+    const popup = new maplibregl.Popup({offset: 10, maxWidth: '280px'}).setDOMContent(box);
+    const m = new maplibregl.Marker({element: el}).setLngLat(ll).setPopup(popup).addTo(map);
+    siteMarkers.push({el, eras, ll, name: s.n, marker: m});
   }
   const shown = new Set(['旧', '縄', '弥']);
   function filterSites() {
@@ -439,8 +498,80 @@
       diff <= 0 ? `　→ 海面${sea}mのとき、ここは海の中（水深 約${(-diff).toFixed(1)}m）`
                 : `　→ 海面${sea}mの海より 約${diff.toFixed(1)}m 高い陸`));
   }
-  map.on('click', e => showHeight(e.lngLat, 'この場所の'));
-  geo.on('geolocate', e => showHeight({lng: e.coords.longitude, lat: e.coords.latitude}, '今いる場所の'));
+  // 地形の読み取り：まわり（約100m・200m）の標高とくらべて、谷・坂・台地を判定する
+  const elev = ll => { const r = map.queryTerrainElevation(ll); return r == null ? null : r / ex; };
+  function describeTerrain(ll) {
+    const box = $('terrain');
+    const h0 = elev(ll);
+    if (h0 == null) { box.textContent = ''; return; }
+    const dLat = 0.0009, dLng = 0.0011; // 約100m
+    const ring = r => { const out = []; for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4;
+      const v = elev({lng: ll.lng + Math.cos(a) * dLng * r, lat: ll.lat + Math.sin(a) * dLat * r}); if (v != null) out.push(v); } return out; };
+    const r1 = ring(1), r2 = ring(2);
+    if (r1.length < 6 || r2.length < 6) { box.textContent = ''; return; }
+    const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+    const rel = h0 - mean(r2);           // まわり200mの平均との差
+    const slope = (Math.max(...r1) - Math.min(...r1)) / 200 * 100; // 100m先どうしの差から見た勾配（%）
+    let kind, text;
+    if (h0 <= sea) {
+      kind = '縄文の海の中';
+      text = `海面${sea}mのとき、ここは海でした。今の地面は、そのあと川が運んだ土砂や人の埋め立てでできたところです。`;
+    } else if (rel <= -3) {
+      kind = '谷の底';
+      text = `まわりより約${Math.round(-rel)}m低い谷です。台地を川が削ってできた谷で、谷底には川や湧き水が流れていました。今は暗渠（地下の水路）になっていることも多く、くねった道や「谷・窪・沢」の付く地名がそのしるしです。`;
+      if (h0 - sea < 8) text += ` 海面からの高さは約${Math.round(h0 - sea)}mで、縄文の海が入り込んだ入り江の奥だったかもしれません。`;
+    } else if (slope >= 5) {
+      kind = '坂（台地と谷のあいだの斜面）';
+      text = `100mで約${Math.round(slope)}mの高低差がある斜面です。台地の縁にあたり、崖の下からは湧き水が出ることがあります。縄文の人は、水が得やすく見晴らしのよい台地の縁に住むことが多かったといわれます。`;
+    } else if (rel >= 3) {
+      kind = '台地の高まり・尾根';
+      text = `まわりより約${Math.round(rel)}m高いところです。谷にはさまれて突き出した台地の先なら、縄文の海に突き出た「岬」だった場所かもしれません。`;
+    } else {
+      kind = h0 - sea < 6 ? '低地（水辺に近い平地）' : '台地の上の平らなところ';
+      text = h0 - sea < 6 ? '縄文の海に近い低い土地です。川の流れや海の砂が積もってできた平地です。'
+        : '武蔵野台地の平らな面です。数万年前に川が運んだ砂利の上に、富士山や箱根の火山灰（関東ローム層）が積もってできています。';
+    }
+    box.innerHTML = '';
+    const b = document.createElement('b'); b.textContent = '地形：' + kind; box.appendChild(b);
+    box.appendChild(document.createElement('br'));
+    box.appendChild(document.createTextNode(text + '（地形の判定は標高データからの自動の目安）'));
+  }
+
+  // 近くの遺跡（直線距離。歩く時間は道のりを直線の1.3倍、分速80mとした目安）
+  let here = null;
+  function distM(a, b) {
+    const R = 6371000, toR = Math.PI / 180;
+    const dLa = (b[1] - a[1]) * toR, dLo = (b[0] - a[0]) * toR;
+    const x = Math.sin(dLa / 2) ** 2 + Math.cos(a[1] * toR) * Math.cos(b[1] * toR) * Math.sin(dLo / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(x));
+  }
+  function showNear() {
+    const base = here || map.getCenter().toArray();
+    const list = siteMarkers.filter(m => m.eras.some(e => shown.has(e)))
+      .map(m => ({m, d: distM(base, m.ll)})).sort((a, b) => a.d - b.d).slice(0, 10);
+    const box = $('near'); box.innerHTML = '';
+    const head = document.createElement('div'); head.className = 'head';
+    head.textContent = here ? '今いる場所から近い順' : '地図の中心から近い順（現在地ボタンを押すと、今いる場所から）';
+    box.appendChild(head);
+    for (const {m, d} of list) {
+      const it = document.createElement('div'); it.className = 'item';
+      const a = document.createElement('span'); a.textContent = m.name;
+      const t = document.createElement('span');
+      t.textContent = d < 1000 ? `${Math.round(d / 10) * 10}m・徒歩約${Math.max(1, Math.round(d * 1.3 / 80))}分` : `${(d / 1000).toFixed(1)}km・徒歩約${Math.round(d * 1.3 / 80)}分`;
+      it.append(a, t);
+      it.addEventListener('click', () => { map.flyTo({center: m.ll, zoom: 16, pitch: 60}); m.marker.togglePopup(); });
+      box.appendChild(it);
+    }
+  }
+  $('nearBtn').addEventListener('click', showNear);
+
+  map.on('click', e => { showHeight(e.lngLat, 'この場所の'); describeTerrain(e.lngLat); });
+  geo.on('geolocate', e => {
+    here = [e.coords.longitude, e.coords.latitude];
+    const ll = {lng: here[0], lat: here[1]};
+    showHeight(ll, '今いる場所の'); describeTerrain(ll);
+    if ($('near').childElementCount) showNear();
+  });
   map.on('error', e => { if (e && e.error && /color-relief/.test(String(e.error.message))) readout.textContent = 'このブラウザでは色分けが表示できません。'; });
 }
 </script>
