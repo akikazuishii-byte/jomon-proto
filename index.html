@@ -299,6 +299,21 @@
   map.addControl(new maplibregl.NavigationControl({visualizePitch: true}), 'top-right');
   const geo = new maplibregl.GeolocateControl({positionOptions: {enableHighAccuracy: true}, trackUserLocation: true});
   map.addControl(geo, 'top-right');
+  // 回転ボタン（指2本でひねっても回せる）
+  map.addControl({
+    onAdd(m) {
+      const box = document.createElement('div'); box.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+      for (const [t, d, lbl] of [['⟲', -30, '左に回す'], ['⟳', 30, '右に回す']]) {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.title = lbl; b.setAttribute('aria-label', lbl);
+        b.style.cssText = 'font-size:18px;line-height:1;padding:0;min-height:29px;border-radius:0;border:0;background:#fff';
+        b.addEventListener('click', () => m.easeTo({bearing: m.getBearing() + d, duration: 400}));
+        box.appendChild(b);
+      }
+      return box;
+    },
+    onRemove() {}
+  }, 'top-right');
+  map.touchZoomRotate.enableRotation();
 
   // スポット（位置は目安。説明は読書メモから。公開前に一次資料で確認）
   const spots = [
