@@ -5,94 +5,160 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>縄文の海 3D地図（試作）</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.16.0/dist/maplibre-gl.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700&display=swap" rel="stylesheet">
 <style>
-  :root{--sea:#2f7fb5;--ink:#13242e;--panel:rgba(251,251,242,.94);--line:#d9d3bd;--accent:#a8551b}
+  /* カラーのレギュレーション（BASE・KEY・SUB・FONT）
+     BASE 生成りの紙 #F4EEDF／KEY 藍 #1B4F66／SUB 土 #8A6A44／FONT 墨 #1F2A2E
+     しるしの色：旧石器 石 #56636B／縄文 土器 #B5532F／弥生 稲 #3C6E4F／坂 #7A5A3A／谷 水 #2F6F95 */
+  :root{--base:#F4EEDF;--base2:#EAE2CC;--key:#1B4F66;--sub:#8A6A44;--ink:#1F2A2E;--ink2:#5A5F55;--line:#D8CDAF;
+    --kyu:#56636B;--jo:#B5532F;--ya:#3C6E4F;--saka:#7A5A3A;--tani:#2F6F95;--gold:#E2C27A;
+    --serif:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif}
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;font:15px/1.5 "Hiragino Sans","Noto Sans JP",system-ui,sans-serif;color:var(--ink);background:#e9e4d2}
+  html,body{margin:0;height:100%;font:15px/1.6 "Hiragino Sans","Noto Sans JP",system-ui,sans-serif;color:var(--ink);background:var(--base2)}
   #map{position:absolute;inset:0}
-  .panel{position:absolute;left:12px;right:12px;bottom:12px;max-width:440px;background:var(--panel);
-    border:1px solid var(--line);border-radius:14px;padding:14px 16px 12px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
-  .panel h1{font-size:17px;margin:0 0 2px;font-weight:700}
-  .panel .sub{font-size:13px;color:#5b5a4e;margin:0 0 10px}
-  .row{display:flex;align-items:center;gap:10px;margin:8px 0}
-  .row label{flex:0 0 5.5em;font-size:13px}
-  .row input[type=range]{flex:1;height:32px;accent-color:var(--sea)}
-  .row output{flex:0 0 3.6em;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
-  .btns{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px}
-  button{font:inherit;font-size:13px;min-height:38px;padding:6px 12px;border-radius:9px;border:1px solid #b8b29a;background:#fff;color:var(--ink);cursor:pointer}
-  button.on{background:var(--sea);border-color:var(--sea);color:#fff}
-  #readout{font-size:13px;margin:8px 0 0;min-height:1.5em}
-  #readout b{color:var(--accent)}
-  .note{font-size:11.5px;color:#6b6957;margin:8px 0 0;line-height:1.45}
-  .toggle{position:absolute;right:12px;bottom:12px;display:none}
-  .maplibregl-popup-content{font-size:13px;line-height:1.5;max-width:240px;color:var(--ink)}
-  .maplibregl-popup-content h3{font-size:14px;margin:0 0 4px}
-  .maplibregl-popup-content .src{font-size:11px;color:#777;margin-top:4px}
-  .pin{width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
-  .pin.start{background:#13242e}
+  /* 下からせり上がるシート */
+  .panel{position:absolute;left:10px;right:10px;bottom:10px;max-width:420px;background:rgba(244,238,223,.96);
+    border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 30px rgba(31,42,46,.22);overflow:hidden;
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .panel header{padding:12px 16px 8px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:10px}
+  .panel header .ttl{flex:1}
+  .panel h1{font:700 18px/1.3 var(--serif);margin:0;letter-spacing:.04em;color:var(--key)}
+  .panel .sub{font-size:12px;color:var(--ink2);margin:2px 0 0}
+  #fold{flex:0 0 auto;min-height:32px;padding:2px 12px;font-size:12px}
+  .body{max-height:62vh;overflow:auto;padding:4px 16px 12px}
   .panel.min .body{display:none}
-  .sub2{font-size:12px;font-weight:700;margin:8px 0 2px;color:#5b5a4e}
+  .panel.min header{border-bottom:0}
+  section{padding:10px 0;border-bottom:1px dashed var(--line)}
+  section:last-of-type{border-bottom:0}
+  h2{font:700 13px/1.4 var(--serif);margin:0 0 6px;color:var(--sub);letter-spacing:.08em}
+  .row{display:flex;align-items:center;gap:10px;margin:4px 0}
+  .row input[type=range]{flex:1;height:32px;accent-color:var(--key)}
+  .row output{flex:0 0 3.4em;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:var(--key)}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 2px}
+  button{font:inherit;font-size:13px;min-height:40px;padding:6px 14px;border-radius:999px;border:1px solid #C9BD9C;
+    background:#FFFCF4;color:var(--ink);cursor:pointer}
+  button:active{transform:translateY(1px)}
+  button.on{background:var(--key);border-color:var(--key);color:#fff}
+  button.primary{background:var(--key);border-color:var(--key);color:#fff;font-weight:700}
+  .seg{display:flex;border:1px solid #C9BD9C;border-radius:999px;overflow:hidden;width:max-content}
+  .seg button{border:0;border-radius:0;min-height:36px;background:transparent}
+  .seg button.on{background:var(--key);color:#fff}
+  /* 「この場所」カード */
+  .here{background:#FFFCF4;border:1px solid var(--line);border-left:4px solid var(--key);border-radius:10px;padding:8px 10px;margin:10px 0 4px}
+  #readout{font-size:13px;margin:0}
+  #readout b{color:var(--key)}
+  #terrain{font-size:13px;margin:4px 0 0;line-height:1.6}
+  #terrain b{font-family:var(--serif);color:var(--sub)}
+  /* 地図に出すもの（凡例をかねたスイッチ） */
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 5px;min-height:38px;opacity:.45}
+  .chip.on{opacity:1;background:#FFFCF4;color:var(--ink);border-color:#9C8F6C}
+  .chip .mk{pointer-events:none}
+  .note{font-size:11px;color:#6E6A58;margin:8px 0 0;line-height:1.5}
+  details summary{cursor:pointer;font:700 13px/1.4 var(--serif);color:var(--sub);letter-spacing:.08em;padding:4px 0}
+  /* しるし（ピン）：色だけでなく文字でも区別する */
+  .mk{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 5px;
+    border-radius:12px;font:700 12px/1 var(--serif);color:#fff;border:2px solid #FFFAF0;
+    box-shadow:0 1px 4px rgba(31,42,46,.4);cursor:pointer;white-space:nowrap;letter-spacing:.02em}
+  .mk.kyu{background:var(--kyu);border-radius:4px}
+  .mk.jo{background:var(--jo)}
+  .mk.ya{background:var(--ya);border-radius:7px}
+  .mk.saka{background:var(--saka);border-radius:4px 12px 4px 12px}
+  .mk.tani{background:var(--tani);border-radius:12px 12px 12px 3px}
+  .mk.story{background:var(--key);border-color:var(--gold);min-width:28px;height:28px;font-size:13px}
+  .mk.start{background:var(--ink);border-color:var(--gold)}
+  .mk.big{height:30px;min-width:30px;font-size:14px;padding:0 7px;border:3px solid var(--gold)}
+  .mk.hidden{display:none}
+  /* 吹き出し */
+  .maplibregl-popup-content{font-size:13px;line-height:1.6;color:var(--ink);background:#FFFCF4;border-radius:12px;padding:0;
+    box-shadow:0 6px 20px rgba(31,42,46,.25);overflow:hidden}
+  .maplibregl-popup-close-button{font-size:20px;width:32px;height:32px;color:var(--ink2)}
+  .pop{padding:10px 14px 12px;border-top:5px solid var(--key);max-height:58vh;overflow:auto}
+  .pop.kyu{border-top-color:var(--kyu)}.pop.jo{border-top-color:var(--jo)}.pop.ya{border-top-color:var(--ya)}
+  .pop.saka{border-top-color:var(--saka)}.pop.tani{border-top-color:var(--tani)}
+  .pop .kind{font-size:11px;color:var(--ink2);letter-spacing:.08em}
+  .pop h3{font:700 16px/1.4 var(--serif);margin:0 28px 4px 0}
+  .pop h3 small{font:400 11px var(--serif);color:var(--ink2);margin-left:6px}
+  .pop .meta{font-size:12px;color:var(--ink2)}
+  .pop p{margin:6px 0 0}
+  .tags{display:flex;gap:4px;flex-wrap:wrap;margin:2px 0 4px}
+  .tag{font-size:11px;padding:1px 7px;border-radius:6px;color:#fff}
+  .tag.旧{background:var(--kyu)}.tag.縄{background:var(--jo)}.tag.弥{background:var(--ya)}
+  .sub2{font:700 12px/1.4 var(--serif);margin:10px 0 2px;color:var(--sub);letter-spacing:.06em}
   ul.life{margin:0;padding-left:1.1em;font-size:12.5px}
   ul.life li{margin:1px 0}
-  a.walk{display:inline-block;margin-top:8px;padding:6px 10px;border-radius:8px;background:var(--sea);color:#fff;text-decoration:none;font-size:13px}
-  #near{max-height:34vh;overflow:auto}
-  #near .item{display:flex;justify-content:space-between;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
-  #near .item span:last-child{white-space:nowrap;color:#5b5a4e}
-  #near .head{font-size:12px;color:#5b5a4e;margin:6px 0 2px}
-  #terrain{font-size:13px;margin:4px 0 0;line-height:1.5}
-  .body{max-height:70vh;overflow:auto}
-  .eras{flex-wrap:wrap;gap:6px}
-  .eras label{flex:0 0 100%;margin-bottom:-2px}
-  button.era{display:inline-flex;align-items:center;gap:6px;opacity:.45}
-  button.era.on{opacity:1;background:#fff;color:var(--ink);border-color:#7d7660}
-  .dot{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0003}
-  .k-kyu{background:#6b6f78}.k-jo{background:#a8551b}.k-ya{background:#c2185b}
-  .site{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.45);cursor:pointer}
-  .site.big{width:20px;height:20px;border-width:3px}
-  .site.hidden{display:none}
-  .tags{display:flex;gap:4px;flex-wrap:wrap;margin:2px 0 4px}
-  .tag{font-size:11px;padding:1px 6px;border-radius:6px;color:#fff}
-  .tag.旧{background:#6b6f78}.tag.縄{background:#a8551b}.tag.弥{background:#c2185b}
-  #fold{position:absolute;top:10px;right:12px;min-height:30px;padding:2px 10px}
+  a.walk{display:block;text-align:center;margin-top:10px;padding:9px 10px;border-radius:999px;background:var(--key);color:#fff;
+    text-decoration:none;font-size:13px;font-weight:700}
+  .src{font-size:10.5px;color:#7A7766;margin-top:8px;line-height:1.45}
+  /* 近くのスポット */
+  #near{max-height:30vh;overflow:auto;margin-top:6px}
+  #near .item{display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+  #near .item .nm{flex:1}
+  #near .item .ds{white-space:nowrap;color:var(--ink2);font-size:12px}
+  #near .item .mk{cursor:inherit;flex:0 0 auto}
+  #near .head{font-size:12px;color:var(--ink2);margin:2px 0}
+  @media (min-width:700px){.panel{left:16px;bottom:16px;top:auto}.body{max-height:70vh}}
 </style>
 </head>
 <body>
 <div id="map"></div>
 
 <div class="panel" id="panel">
-  <button id="fold" aria-label="パネルをたたむ">たたむ</button>
-  <h1>縄文の海 3D地図</h1>
-  <p class="sub">千石・文京まわり＋東京の主な遺跡｜試作</p>
+  <header>
+    <div class="ttl">
+      <h1>縄文の海 3D地図</h1>
+      <p class="sub">坂と谷をたどって、縄文の東京を歩く｜試作</p>
+    </div>
+    <button id="fold" aria-label="パネルをたたむ">たたむ</button>
+  </header>
   <div class="body">
-    <div class="row">
-      <label for="sea">海面の高さ</label>
-      <input id="sea" type="range" min="0" max="10" step="0.5" value="4">
-      <output id="seaOut">4m</output>
+    <div class="here">
+      <p id="readout">地図やしるしをタップすると、その場所の標高と地形（谷・坂・台地）の説明が出ます。</p>
+      <p id="terrain"></p>
     </div>
-    <div class="btns">
-      <button id="now">今の海（0m）</button>
-      <button id="jomon" class="on">縄文の海（目安 +4m）</button>
-    </div>
-    <div class="row">
-      <label for="ex">高さの強調</label>
-      <input id="ex" type="range" min="1" max="6" step="0.5" value="3">
-      <output id="exOut">3倍</output>
-    </div>
-    <div class="row eras">
-      <label>遺跡</label>
-      <button class="era on" data-era="旧"><i class="dot k-kyu"></i>旧石器</button>
-      <button class="era on" data-era="縄"><i class="dot k-jo"></i>縄文</button>
-      <button class="era on" data-era="弥"><i class="dot k-ya"></i>弥生</button>
-    </div>
-    <div class="btns">
-      <button id="viewBunkyo">文京区を見る</button>
-      <button id="viewTokyo">東京を広く見る</button>
-      <button id="nearBtn">近くの遺跡</button>
-    </div>
-    <div id="near"></div>
-    <p id="readout">地図をタップすると、その場所の標高と地形（谷・坂・台地）の説明が出ます。</p>
-    <p id="terrain"></p>
-    <p class="note">色分けは「今の標高データで海面を上げた」推定です。下町は地盤沈下と盛土で、縄文時代の地面の高さと違います。遺跡のピンは「文京区遺跡一覧」（2024年3月31日現在）などから。位置は丁目の代表点の目安で、遺跡の範囲そのものではありません。地図・標高：国土地理院</p>
+    <section>
+      <h2>海の高さ</h2>
+      <div class="seg">
+        <button id="now">今の海（0m）</button>
+        <button id="jomon" class="on">縄文の海（目安 +4m）</button>
+      </div>
+      <div class="row">
+        <input id="sea" type="range" min="0" max="10" step="0.5" value="4" aria-label="海面の高さ">
+        <output id="seaOut">4m</output>
+      </div>
+    </section>
+    <section>
+      <h2>地図に出すもの</h2>
+      <div class="chips">
+        <button class="chip on" data-key="旧"><span class="mk kyu">旧</span>旧石器</button>
+        <button class="chip on" data-key="縄"><span class="mk jo">縄</span>縄文</button>
+        <button class="chip on" data-key="弥"><span class="mk ya">弥</span>弥生</button>
+        <button class="chip on" data-key="坂"><span class="mk saka">坂</span>坂の名前</button>
+        <button class="chip on" data-key="谷"><span class="mk tani">谷</span>谷と川の跡</button>
+      </div>
+    </section>
+    <section>
+      <h2>歩く</h2>
+      <div class="btns">
+        <button id="nearBtn" class="primary">近くのスポット</button>
+        <button id="viewBunkyo">文京区へ</button>
+        <button id="viewTokyo">東京を広く</button>
+      </div>
+      <div id="near"></div>
+    </section>
+    <section>
+      <details>
+        <summary>表示の設定</summary>
+        <div class="row">
+          <label for="ex" style="font-size:13px">高さの強調</label>
+          <input id="ex" type="range" min="1" max="6" step="0.5" value="3">
+          <output id="exOut">3倍</output>
+        </div>
+      </details>
+      <p class="note">色分けは「今の標高データで海面を上げた」推定です。下町は地盤沈下と盛土で、縄文時代の地面の高さと違います。遺跡は各区の遺跡一覧から。位置は丁目・番の代表点の目安で、遺跡の範囲そのものではありません。坂と谷の名前の由来は、坂の標識などに伝わる説で、諸説あります。地図・標高：国土地理院</p>
+    </section>
   </div>
 </div>
 
@@ -158,13 +224,13 @@
   // 海面の高さで色を変える（海＝青、陸＝標高ごとの土の色）
   function reliefColors(sea) {
     return ['interpolate', ['linear'], ['elevation'],
-      -5, '#0b3d5c',
-      sea, '#3a8cc2',
-      sea + 0.01, '#efe6c4',
-      sea + 6, '#d8c48f',
-      sea + 14, '#b9a466',
-      sea + 26, '#8f9a55',
-      sea + 40, '#5f7440'];
+      -5, '#163f57',
+      sea, '#4f8fb3',
+      sea + 0.01, '#f1e8cc',
+      sea + 6, '#dfcd9a',
+      sea + 14, '#c4ab72',
+      sea + 26, '#9a9a62',
+      sea + 40, '#6c7a4c'];
   }
 
   let sea = 4, ex = 3;
@@ -182,7 +248,7 @@
         shadeSrc: demSource()
       },
       layers: [
-        {id: 'bg', type: 'background', paint: {'background-color': '#e9e4d2'}},
+        {id: 'bg', type: 'background', paint: {'background-color': '#eae2cc'}},
         {id: 'pale', type: 'raster', source: 'pale', paint: {'raster-opacity': 0.55}},
         {id: 'relief', type: 'color-relief', source: 'reliefSrc',
           paint: {'color-relief-opacity': 0.72, 'color-relief-color': reliefColors(sea)}},
@@ -211,15 +277,33 @@
     {name: '五条天神（上野）', ll: [139.7718, 35.7129],
       text: '上野台の岬のあたり。', src: '中沢新一『アースダイバー』第9章'}
   ];
+  const $ = id => document.getElementById(id);
+  // しるしと吹き出しの共通部品
+  const allMarkers = [];
+  const shown = new Set(['旧', '縄', '弥', '坂', '谷']);
+  const ERA = {旧: '旧石器', 縄: '縄文', 弥: '弥生'};
+  const ECLS = {旧: 'kyu', 縄: 'jo', 弥: 'ya'};
+  const el$ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  function walkLink(ll) {
+    const a = el$('a', 'walk', 'ここまで歩く（Googleマップ）');
+    a.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
+    a.target = '_blank'; a.rel = 'noopener'; return a;
+  }
+  function addMarker({cls, label, ll, box, keys, name, type}) {
+    const el = el$('div', 'mk ' + cls, label);
+    el.setAttribute('role', 'button'); el.setAttribute('aria-label', name);
+    const popup = new maplibregl.Popup({offset: 14, maxWidth: '300px'}).setDOMContent(box);
+    const marker = new maplibregl.Marker({element: el}).setLngLat(ll).setPopup(popup).addTo(map);
+    el.addEventListener('click', () => { const p = {lng: ll[0], lat: ll[1]}; showHeight(p, name + 'の'); describeTerrain(p); });
+    const rec = {el, ll, name, keys, marker, cls, label, type};
+    allMarkers.push(rec); return rec;
+  }
   for (const s of spots) {
-    const el = document.createElement('div');
-    el.className = 'pin' + (s.start ? ' start' : '');
-    const box = document.createElement('div');
-    const h = document.createElement('h3'); h.textContent = s.name; box.appendChild(h);
-    const p = document.createElement('div'); p.textContent = s.text; box.appendChild(p);
-    if (s.src) { const c = document.createElement('div'); c.className = 'src'; c.textContent = '出典：' + s.src; box.appendChild(c); }
-    new maplibregl.Marker({element: el}).setLngLat(s.ll)
-      .setPopup(new maplibregl.Popup({offset: 12}).setDOMContent(box)).addTo(map);
+    const box = el$('div', 'pop');
+    box.append(el$('div', 'kind', s.start ? 'スタート地点' : '物語のスポット'), el$('h3', null, s.name), el$('p', null, s.text));
+    box.appendChild(walkLink(s.ll));
+    if (s.src) box.appendChild(el$('div', 'src', '出典：' + s.src));
+    addMarker({cls: s.start ? 'story start' : 'story', label: s.start ? '始' : '話', ll: s.ll, box, keys: null, name: s.name, type: 'スポット'});
   }
 
   // 遺跡（旧石器・縄文・弥生）
@@ -376,6 +460,94 @@
       t: '弥生時代後期の大集落。南関東の弥生時代後期前葉の基準になる「久ヶ原式土器」の名の元。', s: '大田区立郷土博物館'}
   ];
 
+  // 坂：名前の由来は文京区教育委員会の坂の標識などに伝わる説（諸説あり）。
+  //   場所・長さは文京区「フィルムコミッション」の坂の紹介ページなど。位置は国土地理院の住所検索による番地の代表点（目安）
+  const SB = '文京区教育委員会の坂の標識（各坂の案内板）';
+  const FC = '文京区フィルムコミッションの坂の紹介';
+  const SLOPES = [
+    {n: '菊坂', y: 'きくざか', ll: [139.758118, 35.710117], p: '本郷五丁目の代表点', a: '本郷四・五丁目の境',
+      t: '江戸時代の地誌『御府内備考』に、このあたり一帯に菊畑があって菊づくりの人が多く住み、坂を菊坂と呼んだと書かれています。由来のはっきりした坂です。',
+      g: '本郷台地を刻んだ細長い谷の底を通る長い坂。両側の台地から炭団坂・鐙坂・本妙寺坂・梨木坂などが、この谷へ下りてきます。', s: SB},
+    {n: '炭団坂', y: 'たどんざか', ll: [139.75621, 35.70948], a: '本郷四丁目32番と35番の間',
+      t: '炭団（炭の粉を丸めた燃料）を売る人が多かったから、または切り立った急な坂で転び落ちる人がいたから、といわれます。',
+      g: '本郷台地から菊坂の谷へ下る、長さ約35mの急な石段。坂の上には文京ふるさと歴史館があります。', s: SB + '／' + FC},
+    {n: '鐙坂', y: 'あぶみざか', ll: [139.755722, 35.709843], a: '本郷四丁目20番と31番の間',
+      t: '鐙（あぶみ＝馬具）をつくる職人の子孫が住んでいたから（『江戸志』）、坂の形が鐙に似ているから（『改撰江戸志』）、という説があります。',
+      g: '本郷台地から菊坂の狭い谷へ下り、先が右にゆるく曲がる長さ33mの坂。片側は石垣で、坂の上に金田一京助・春彦の旧居跡があります。', s: SB + '／' + FC},
+    {n: '曙坂', y: 'あけぼのざか', ll: [139.754028, 35.717583], a: '西片二丁目7番と14番の間',
+      t: '『江戸砂子』によると、白山の東洋大学の北西あたりは俗に「鶏声ヶ窪」と呼ばれていました。明治2年（1869）に町ができたとき、鶏が暁に時を告げることから「あけぼの（曙）」を町名にし、坂の名もそこから付いたといわれます。',
+      g: '西片の台地から白山側の谷へ下る、長さ約23mの急な石段。昭和22年（1947）に石段に改修されました。', s: SB + '／' + FC},
+    {n: '浄心寺坂', y: 'じょうしんじざか', ll: [139.752579, 35.720486], a: '白山一丁目34・28番と35・27番の間',
+      t: '坂の上（向丘）にある浄心寺から付いた名といわれます。坂下の円乗寺に八百屋お七の墓があり、「お七坂」とも呼ばれます。',
+      g: '白山下（指ヶ谷の谷）から本郷台地へ上る、長さ約170mのゆるやかな坂。坂下は蓮華寺坂・薬師坂と落ち合う谷の底です。', s: SB + '／' + FC},
+    {n: '庚申坂', y: 'こうしんざか', ll: [139.740891, 35.713238], a: '春日二丁目と小日向四丁目の間',
+      t: '坂の下に庚申塚（庚申信仰の石の塔）があったことから、といわれます。',
+      g: '春日通りの尾根から茗荷谷の谷底へ下る、途中で折れ曲がる長さ約45mの石段。坂下で丸ノ内線のガードをくぐると、向かいの台地へ上る切支丹坂です。', s: SB + '／' + FC},
+    {n: '切支丹坂', y: 'きりしたんざか', ll: [139.738495, 35.713318], a: '小日向一丁目14番と24番の間',
+      t: '江戸時代、坂の上の小日向台に「切支丹屋敷」（捕らえたキリスト教の宣教師などを収めた屋敷。正保3年＝1646年から）があったことから。',
+      g: '茗荷谷の谷底から小日向台へ上る坂。庚申坂と向かい合い、谷をはさんで台地から台地へ渡る道になっています。', s: SB},
+    {n: '鷺坂', y: 'さぎざか', ll: [139.732758, 35.711212], a: '小日向二丁目19・20番と21番の間',
+      t: '近くに住んだ文人たちが、万葉集の「山城の久世の鷺坂」の歌にちなんで名づけたと伝わります。坂の角に由来の案内板があります。',
+      g: '小日向台から神田川（江戸川）沿いの低地へ下る、途中で鋭く曲がる長さ約70mの急坂。石垣が残り、2008年に文京区都市景観賞を受けました。', s: SB + '／' + FC},
+    {n: '胸突坂', y: 'むなつきざか', ll: [139.72467, 35.713329], a: '関口二丁目と目白台一丁目の間',
+      t: 'あまりに急で、胸を突くようにしないと上れないことから。急な坂によく付く名で、同じ名前の坂が各地にあります。',
+      g: '神田川沿いの低地から目白台へ上る、長さ約65mの急な石段。坂下に水神社と関口芭蕉庵があり、神田川が台地を削った崖の様子がよくわかります。', s: SB + '／' + FC},
+    {n: '安藤坂', y: 'あんどうざか', ll: [139.747726, 35.707943], a: '春日一・二丁目の境（牛天神の下）',
+      t: '坂の西側に、江戸時代の旗本・安藤飛騨守の屋敷があったことから、といわれます。',
+      g: '神田川沿いの低地から、伝通院のある小石川台地へ上る坂。坂下の牛天神（北野神社）は、弥生時代の遺跡「北野神社遺跡」でもあります。', s: SB},
+    {n: '富坂', y: 'とみざか', ll: [139.74765, 35.709442], a: '春日一丁目（富坂上）のあたり',
+      t: '鳶（とび）が多くいたので「とび坂」と呼ばれ、それが「富坂」になったといわれます。',
+      g: '春日通りが、小石川の谷（白山通り）から西の小石川台地へ上る坂。谷をはさんで東側の真砂坂と向かい合い、谷の深さが体でわかります。', s: SB},
+    {n: '善光寺坂', y: 'ぜんこうじざか', ll: [139.748734, 35.712246], a: '小石川二・三丁目の境',
+      t: '坂の途中にある善光寺（信州善光寺の別院）から。',
+      g: '小石川の谷（こんにゃくえんまの方）から、伝通院のある台地へ上る坂です。', s: SB},
+    {n: '播磨坂', y: 'はりまざか', ll: [139.741989, 35.715794], a: '小石川四・五丁目の境',
+      t: '江戸時代、このあたりに松平播磨守（常陸府中藩）の屋敷があったことから、といわれます。坂の道そのものは戦後に造られ、今は桜並木で知られます。',
+      g: '春日通りの尾根から、千川の谷（小石川植物園の方）へ下る幅の広い坂です。', s: '一般に伝わる説'},
+    {n: '湯立坂', y: 'ゆたてざか', ll: [139.740601, 35.721931], p: '坂下の簸川神社（千石二丁目10番）の代表点', a: '大塚三丁目・小石川五丁目のあたり（坂下は簸川神社の向かい）',
+      t: '簸川神社（氷川神社）のお祭りのとき、谷を流れる千川を渡れない人々が、この坂で湯立て（湯をわかして神に供えるお清め）をしたと伝わります。',
+      g: '千川の谷から茗荷谷側の台地へ上る坂。坂下の千川は今は暗渠で、千川通りになっています。', s: SB},
+    {n: '団子坂', y: 'だんござか', ll: [139.762056, 35.725167], p: 'ウィキペディアの座標', a: '千駄木二・三丁目の境',
+      t: '坂に団子屋があったから、という説が有力です。ほかに、団子のような石が多かった、転ぶと団子のように転がった、などの説もあります。',
+      g: '本郷台地から、藍染川が流れていた根津の谷へ下る坂。坂の上に森鷗外の住まい「観潮楼」の跡（森鷗外記念館）があります。', s: 'ウィキペディア「団子坂」'},
+    {n: '大給坂', y: 'おぎゅうざか', ll: [139.762543, 35.727776], p: '千駄木三丁目の代表点', a: '千駄木三丁目',
+      t: '坂の上に子爵・大給家の屋敷があったことから。のちに首相となる大平正芳も住んだことがあります。',
+      g: '不忍通り（藍染川の谷）から本郷台地へ上る、長さ約140mのかなり急な坂。坂上の児童遊園に大イチョウがあります。', s: FC},
+    {n: '動坂', y: 'どうざか', ll: [139.76001, 35.730949], p: '千駄木四丁目の代表点', a: '本駒込四丁目と千駄木四丁目の境',
+      t: '『江戸名所図会』に、「不動坂」を略した名で、不動堂があった場所だとあります。',
+      g: '本郷台地から藍染川（谷田川）の谷へ下る坂。坂の上の台地には、旧石器から弥生までの暮らしの跡「動坂遺跡」があります。', s: '『江戸名所図会』（東京坂道のサイトで確認）'},
+    {n: '異人坂', y: 'いじんざか', ll: [139.764023, 35.717571], a: '弥生二丁目13番の北側',
+      t: '明治のころ、坂の上の東京大学にいた外国人の先生たちが、この坂を通って根津や上野へ出かけたことから、と伝わります。',
+      g: '本郷台地（向ヶ岡）から根津の谷へ下る長さ約110mの坂。すぐ近くの向ヶ岡で、のちに「弥生式土器」と名付けられた壺が見つかりました。', s: SB + '／' + FC},
+    {n: 'お化け階段', ll: [139.761444, 35.718113], a: '弥生二丁目18番と19番の間',
+      t: '上りと下りで段数がちがって数えられる、という話からこう呼ばれています（全40段）。',
+      g: '根津の谷から本郷台地へ上る、途中で折れ曲がる階段。台地の縁の急な斜面がよくわかります。', s: FC},
+    {n: '無縁坂', y: 'むえんざか', ll: [139.765457, 35.708893], p: '湯島四丁目の代表点', a: '湯島四丁目（旧岩崎邸庭園の北側）',
+      t: '坂の上に無縁寺があったから、という説があります。森鷗外の小説『雁』の舞台です。',
+      g: '本郷台地の東の縁から、不忍池の低地へ下る坂。不忍池のあたりは、縄文の海の入り江が残った場所と考えられています。', s: '一般に伝わる説'}
+  ];
+  // 谷と川の跡
+  const VALLEYS = [
+    {n: '指ヶ谷', y: 'さすがや', ll: [139.751373, 35.719555], p: '白山二丁目39番（白山下）の代表点', a: '白山一・二丁目（白山通り・白山下のあたり）',
+      t: '三代将軍家光が鷹狩りに来たとき、「あの谷にもやがて人家ができるだろう」と指さしたことから、と伝わります（指ヶ谷町会）。',
+      g: '白山通りが通る細い谷。白山下は、浄心寺坂・蓮華寺坂・薬師坂の三つの坂が下りてくる谷の底です。谷のまわりには縄文・弥生の「指ヶ谷町遺跡」があります。', s: '文京区町会連合会『六十年のあゆみ』（文京区のサイト）'},
+    {n: '茗荷谷', y: 'みょうがだに', ll: [139.73969, 35.71328], p: '庚申坂と切支丹坂のあいだ', a: '小日向・春日二丁目のあいだ（丸ノ内線が通る谷）',
+      t: 'むかし茗荷の畑が広がっていたことから。谷の景色が美しく、「茗渓（めいけい）」とも呼ばれました。',
+      g: '春日通りの尾根と小日向台にはさまれた谷。谷へは庚申坂で下り、向かいの台地へは切支丹坂で上ります。谷の上の小日向四丁目には縄文の貝塚があります。', s: '地名について一般に伝わる説／「茗渓」の呼び名は朝日ネット「文京区の坂」'},
+    {n: '千川の谷（小石川）', y: 'せんかわ', ll: [139.742233, 35.718777], p: '小石川五丁目37番（白山三丁目交差点）の代表点', a: '千川通りぞい（小石川植物園の西）',
+      t: '千川通りの下には千川（小石川とも）が流れていて、多くの橋がかかっていました。昭和9年（1934）に暗渠になり、道路になりました。「千石」の町名は、この「千川」と「小石川」から一字ずつとったものです。',
+      g: '台地を川が削った谷。湯立坂・播磨坂がこの谷へ下ります。谷に面した植物園の台地には、旧石器・縄文の遺跡や貝塚があります。', s: '文京区町会連合会記念誌（礫川地区）／千石の町名の由来'},
+    {n: '藍染川の谷（根津）', y: 'あいそめがわ', ll: [139.765686, 35.718544], p: '根津二丁目の代表点', a: '不忍通りぞい（千駄木・根津）',
+      t: '不忍通りの下を藍染川（谷田川）が流れ、不忍池に注いでいました。関東大震災のあとに暗渠になりました。',
+      g: '本郷台地と上野台地のあいだの谷。団子坂・大給坂・動坂・異人坂がこの谷へ下ります。谷の両側の台地の縁には、千駄木貝塚・向ヶ岡貝塚など縄文の貝塚が並びます。', s: 'ウィキペディア「団子坂」（藍染川について）'},
+    {n: '鶏声ヶ窪', y: 'けいせいがくぼ', ll: [139.749557, 35.723492], p: '白山五丁目の代表点', a: '白山（東洋大学の北西のあたり）',
+      t: '『江戸砂子』に、このあたりを俗に「鶏声ヶ窪」と呼んだとあります（曙坂の標識）。「窪」はくぼ地のことです。',
+      g: '台地にくいこんだ、くぼ地の地名。谷の名前と同じく、昔の地形が地名に残っています。', s: SB},
+    {n: '音羽の谷（弦巻川）', y: 'おとわ', ll: [139.727676, 35.71854], p: '音羽二丁目の代表点', a: '音羽通りぞい（護国寺〜江戸川橋）',
+      t: '護国寺の門前から江戸川橋へまっすぐ続く音羽通りは、谷底の道です。雑司ヶ谷の方から弦巻川が流れ、神田川（江戸川）に注いでいました。',
+      g: '目白台と小日向台にはさまれた谷。護国寺の前の地下深くからは、セイウチの頭骨が見つかっています（貝塚爽平『東京の自然史』）。', s: '貝塚爽平『東京の自然史』ほか'}
+  ];
+
   // 見つかった物・遺構から「ここでの暮らし」を言葉にする（一般的な考古学の解釈。遺跡ごとの断定ではない）
   const LIFE = [
     [/ナイフ形石器|尖頭器|細石刃|細石器|角錐状石器|台形様?石器|石器ブロック|礫群/, '旧石器時代の人が、石のナイフや槍で狩りをしていた（礫群は焼けた石で料理した跡と考えられています）'],
@@ -411,59 +583,61 @@
     return out;
   }
 
-  // 同じ丁目に重なるピンを少しずらす
+  // 同じ場所に重なるしるしを少しずらす
   const used = {};
-  const siteMarkers = [];
-  const ERA = {旧: '旧石器', 縄: '縄文', 弥: '弥生'};
+  const jitter = ll => { const key = ll.join(','); const i = used[key] = (used[key] || 0) + 1;
+    return i > 1 ? [ll[0] + 0.00045 * Math.cos(i * 2.1), ll[1] + 0.00035 * Math.sin(i * 2.1)] : ll; };
   for (const s of sites) {
-    let ll = s.ll || C[s.c];
-    { const key = ll.join(','); const i = used[key] = (used[key] || 0) + 1; if (i > 1) ll = [ll[0] + 0.00045 * Math.cos(i * 2.1), ll[1] + 0.00035 * Math.sin(i * 2.1)]; }
+    const ll = jitter(s.ll || C[s.c]);
     const eras = [...s.e];
     const main = eras.includes('縄') ? '縄' : eras.includes('弥') ? '弥' : '旧';
-    const el = document.createElement('div');
-    el.className = 'site' + (s.big ? ' big' : '');
-    el.style.background = main === '縄' ? '#a8551b' : main === '弥' ? '#c2185b' : '#6b6f78';
-    if (eras.length > 1) el.style.background = `conic-gradient(${eras.map((e, j) => `${e === '旧' ? '#6b6f78' : e === '縄' ? '#a8551b' : '#c2185b'} ${j * 360 / eras.length}deg ${(j + 1) * 360 / eras.length}deg`).join(',')})`;
-    const box = document.createElement('div');
-    const h = document.createElement('h3'); h.textContent = s.n; box.appendChild(h);
-    const tg = document.createElement('div'); tg.className = 'tags';
-    for (const e of eras) { const sp = document.createElement('span'); sp.className = 'tag ' + e; sp.textContent = ERA[e]; tg.appendChild(sp); }
-    box.appendChild(tg);
-    const k = document.createElement('div'); k.textContent = `${s.k}｜${s.a}`; box.appendChild(k);
-    if (s.t) { const p = document.createElement('div'); p.style.marginTop = '4px'; p.textContent = s.t; box.appendChild(p); }
+    const box = el$('div', 'pop ' + ECLS[main]);
+    box.appendChild(el$('div', 'kind', '遺跡'));
+    box.appendChild(el$('h3', null, s.n));
+    const tg = el$('div', 'tags');
+    for (const e of eras) tg.appendChild(el$('span', 'tag ' + e, ERA[e]));
+    box.append(tg, el$('div', 'meta', `${s.k}｜${s.a}`));
+    if (s.t) box.appendChild(el$('p', null, s.t));
     const life = explainSite(s, eras);
     if (life.length) {
-      const hh = document.createElement('div'); hh.className = 'sub2'; hh.textContent = 'ここでの暮らし（見つかった物からの推定）'; box.appendChild(hh);
-      const ul = document.createElement('ul'); ul.className = 'life';
-      for (const x of life) { const li = document.createElement('li'); li.textContent = x; ul.appendChild(li); }
-      box.appendChild(ul);
+      box.appendChild(el$('div', 'sub2', 'ここでの暮らし（見つかった物からの推定）'));
+      const ul = el$('ul', 'life'); for (const x of life) ul.appendChild(el$('li', null, x)); box.appendChild(ul);
     }
-    const walk = document.createElement('a'); walk.className = 'walk';
-    walk.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
-    walk.target = '_blank'; walk.rel = 'noopener'; walk.textContent = 'ここまで歩く（Googleマップ）';
-    box.appendChild(walk);
-    const src = document.createElement('div'); src.className = 'src';
-    src.textContent = '出典：' + s.s + (s.c ? '。位置は丁目の代表点（目安）' : '');
-    box.appendChild(src);
-    const popup = new maplibregl.Popup({offset: 10, maxWidth: '280px'}).setDOMContent(box);
-    const m = new maplibregl.Marker({element: el}).setLngLat(ll).setPopup(popup).addTo(map);
-    siteMarkers.push({el, eras, ll, name: s.n, marker: m});
+    box.appendChild(walkLink(ll));
+    box.appendChild(el$('div', 'src', '出典：' + s.s + (s.c ? '。位置は丁目の代表点（目安）' : '')));
+    addMarker({cls: ECLS[main] + (s.big ? ' big' : ''), label: eras.join(''), ll, box, keys: eras, name: s.n, type: '遺跡'});
   }
-  const shown = new Set(['旧', '縄', '弥']);
-  function filterSites() {
-    for (const m of siteMarkers) m.el.classList.toggle('hidden', !m.eras.some(e => shown.has(e)));
+
+  // 坂と谷（名前の由来と、地形の中での位置づけ）
+  for (const g of [...SLOPES.map(x => ({...x, kind: '坂'})), ...VALLEYS.map(x => ({...x, kind: '谷'}))]) {
+    const cls = g.kind === '坂' ? 'saka' : 'tani';
+    const box = el$('div', 'pop ' + cls);
+    box.appendChild(el$('div', 'kind', g.kind === '坂' ? '坂の名前' : '谷と川の跡'));
+    const h = el$('h3', null, g.n); if (g.y) h.appendChild(el$('small', null, g.y)); box.appendChild(h);
+    box.appendChild(el$('div', 'meta', g.a));
+    box.appendChild(el$('div', 'sub2', '名前の由来'));
+    box.appendChild(el$('p', null, g.t));
+    box.appendChild(el$('div', 'sub2', g.kind === '坂' ? '地形の中のこの坂' : 'この谷の地形'));
+    box.appendChild(el$('p', null, g.g));
+    box.appendChild(walkLink(g.ll));
+    box.appendChild(el$('div', 'src', '出典：' + g.s + '。位置は' + (g.p || '番地の代表点') + '（目安）'));
+    addMarker({cls, label: g.kind, ll: jitter(g.ll), box, keys: [g.kind], name: g.n, type: g.kind});
   }
-  for (const b of document.querySelectorAll('button.era')) {
+
+  function filterMarkers() {
+    for (const m of allMarkers) if (m.keys) m.el.classList.toggle('hidden', !m.keys.some(k => shown.has(k)));
+  }
+  for (const b of document.querySelectorAll('button.chip')) {
     b.addEventListener('click', () => {
-      const e = b.dataset.era;
-      if (shown.has(e)) shown.delete(e); else shown.add(e);
-      b.classList.toggle('on', shown.has(e));
-      filterSites();
+      const k = b.dataset.key;
+      if (shown.has(k)) shown.delete(k); else shown.add(k);
+      b.classList.toggle('on', shown.has(k));
+      filterMarkers();
+      if ($('near').childElementCount) showNear();
     });
   }
 
   // 操作
-  const $ = id => document.getElementById(id);
   $('viewBunkyo').addEventListener('click', () => map.flyTo({center: [139.752, 35.716], zoom: 14.3, pitch: 62, bearing: -25}));
   $('viewTokyo').addEventListener('click', () => map.flyTo({center: [139.66, 35.67], zoom: 10.6, pitch: 50, bearing: -15}));
   const readout = $('readout');
@@ -547,19 +721,16 @@
   }
   function showNear() {
     const base = here || map.getCenter().toArray();
-    const list = siteMarkers.filter(m => m.eras.some(e => shown.has(e)))
-      .map(m => ({m, d: distM(base, m.ll)})).sort((a, b) => a.d - b.d).slice(0, 10);
+    const list = allMarkers.filter(m => !m.keys || m.keys.some(k => shown.has(k)))
+      .map(m => ({m, d: distM(base, m.ll)})).sort((a, b) => a.d - b.d).slice(0, 12);
     const box = $('near'); box.innerHTML = '';
-    const head = document.createElement('div'); head.className = 'head';
-    head.textContent = here ? '今いる場所から近い順' : '地図の中心から近い順（現在地ボタンを押すと、今いる場所から）';
-    box.appendChild(head);
+    box.appendChild(el$('div', 'head', here ? '今いる場所から近い順' : '地図の中心から近い順（右上の現在地ボタンを押すと、今いる場所から）'));
     for (const {m, d} of list) {
-      const it = document.createElement('div'); it.className = 'item';
-      const a = document.createElement('span'); a.textContent = m.name;
-      const t = document.createElement('span');
-      t.textContent = d < 1000 ? `${Math.round(d / 10) * 10}m・徒歩約${Math.max(1, Math.round(d * 1.3 / 80))}分` : `${(d / 1000).toFixed(1)}km・徒歩約${Math.round(d * 1.3 / 80)}分`;
-      it.append(a, t);
-      it.addEventListener('click', () => { map.flyTo({center: m.ll, zoom: 16, pitch: 60}); m.marker.togglePopup(); });
+      const it = el$('div', 'item');
+      const min = Math.max(1, Math.round(d * 1.3 / 80));
+      it.append(el$('span', 'mk ' + m.cls.replace(' big', ''), m.label), el$('span', 'nm', m.name),
+        el$('span', 'ds', (d < 1000 ? `${Math.round(d / 10) * 10}m` : `${(d / 1000).toFixed(1)}km`) + `・徒歩約${min}分`));
+      it.addEventListener('click', () => { map.flyTo({center: m.ll, zoom: 16.2, pitch: 60}); if (!m.marker.getPopup().isOpen()) m.marker.togglePopup(); });
       box.appendChild(it);
     }
   }
