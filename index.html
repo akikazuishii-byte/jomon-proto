@@ -112,6 +112,21 @@
   #visited .item .nm{flex:1} #visited .item .ds{font-size:11px;color:var(--ink2)}
   #visited .empty{font-size:12px;color:var(--ink2);margin:0}
   button.add.vis.in{background:var(--gold);border-color:var(--gold);color:var(--ink)}
+  .mk.photo::before{content:'';position:absolute;right:-5px;top:-5px;width:11px;height:11px;border-radius:3px;background:#fff;border:2px solid var(--key)}
+  .photobox{display:none;margin-top:6px}
+  label.add.photo{display:block;text-align:center;cursor:pointer;padding:8px;border-radius:999px;border:1px solid var(--key);color:var(--key);font-weight:700;font-size:13px;background:#FFFCF4}
+  .strip{display:flex;gap:4px;overflow-x:auto;margin-top:6px}
+  .strip img{width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer}
+  #album .head{font-size:12px;color:var(--ink2);margin:8px 0 4px}
+  #album .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+  #album figure{margin:0;cursor:pointer}
+  #album img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;display:block}
+  #album figcaption{font-size:10.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #album .empty{font-size:12px;color:var(--ink2);margin:6px 0 0}
+  .photoview{position:fixed;inset:0;background:rgba(20,24,26,.92);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px}
+  .photoview img{max-width:100%;max-height:78vh;border-radius:8px}
+  .photoview .cap{color:#fff;font:700 14px var(--serif)}
+  .photoview button{background:transparent;color:#fff;border-color:#fff8}
   .mk.hidden{display:none}
   /* 地図の上のしるしは地図ライブラリが位置を決めるので absolute に戻す（relative だとずれて動く） */
   .maplibregl-marker.mk{position:absolute}
@@ -212,6 +227,7 @@
       <div id="near"></div>
       <h2 style="margin-top:12px">制覇</h2>
       <div id="visited"></div>
+      <div id="album"></div>
       <h2 style="margin-top:12px">コース</h2>
       <div id="course"></div>
     </section>
@@ -470,6 +486,58 @@
     else if (save) { fixes[rec.type + '|' + rec.name] = ll; try { localStorage.setItem(FIX_KEY, JSON.stringify(fixes)); } catch (e) {} }
   }
   function applyFixes() { for (const r of allMarkers) { const f = fixes[r.type + '|' + r.name]; if (f) moveTo(r, f, false); } }
+  function alertBox(rec, t) { const b = $('readout'); b.textContent = t; }
+  // 写真：制覇した場所に写真を残す。写真はこの端末の中（IndexedDB）だけに保存し、どこにも送らない
+  const PHOTO_DB = 'jomon_photos_v1';
+  let photoDb = null;
+  function openPhotoDb() {
+    if (photoDb) return Promise.resolve(photoDb);
+    return new Promise((res, rej) => { try {
+      const r = indexedDB.open(PHOTO_DB, 1);
+      r.onupgradeneeded = () => { const os = r.result.createObjectStore('p', {keyPath: 'k', autoIncrement: true}); os.createIndex('id', 'id'); };
+      r.onsuccess = () => { photoDb = r.result; res(photoDb); }; r.onerror = () => rej(r.error);
+    } catch (e) { rej(e); } });
+  }
+  async function photosOf(id) {
+    try { const db = await openPhotoDb(); return await new Promise(res => { const q = db.transaction('p').objectStore('p').index('id').getAll(id); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); }); } catch (e) { return []; }
+  }
+  async function allPhotos() {
+    try { const db = await openPhotoDb(); return await new Promise(res => { const q = db.transaction('p').objectStore('p').getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); }); } catch (e) { return []; }
+  }
+  async function addPhoto(id, name, file) {
+    const shrink = (img, max, q) => { const k = Math.min(1, max / Math.max(img.width, img.height)); const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      return new Promise(r => c.toBlob(r, 'image/jpeg', q)); };
+    const img = await createImageBitmap(file);
+    const big = await shrink(img, 1600, 0.85), thumb = await shrink(img, 320, 0.8);
+    const db = await openPhotoDb();
+    await new Promise((res, rej) => { const t = db.transaction('p', 'readwrite'); t.objectStore('p').add({id, name, date: new Date().toISOString().slice(0, 10), big, thumb}); t.oncomplete = res; t.onerror = () => rej(t.error); });
+  }
+  async function delPhoto(k) { const db = await openPhotoDb(); await new Promise(res => { const t = db.transaction('p', 'readwrite'); t.objectStore('p').delete(k); t.oncomplete = res; }); }
+  function viewPhoto(p) {
+    const ov = el$('div', 'photoview'); const im = el$('img'); im.src = URL.createObjectURL(p.big);
+    const cap = el$('div', 'cap', `${p.name}　${p.date}`); const del = el$('button', null, 'この写真を消す');
+    del.addEventListener('click', async ev => { ev.stopPropagation(); if (del.dataset.sure) { await delPhoto(p.k); ov.remove(); refreshPhotos(); } else { del.dataset.sure = 1; del.textContent = 'もう一度押すと消えます'; } });
+    ov.append(im, cap, del); ov.addEventListener('click', () => ov.remove()); document.body.appendChild(ov);
+  }
+  async function fillPhotoStrip(rec) {
+    if (!rec.photoStrip) return; rec.photoStrip.innerHTML = '';
+    for (const p of await photosOf(rec.id)) { const im = el$('img'); im.src = URL.createObjectURL(p.thumb); im.addEventListener('click', ev => { ev.stopPropagation(); viewPhoto(p); }); rec.photoStrip.appendChild(im); }
+  }
+  async function refreshPhotos() {
+    const ps = await allPhotos();
+    const has = new Set(ps.map(p => p.id));
+    for (const m of allMarkers) { m.el.classList.toggle('photo', has.has(m.id)); if (m.photoStrip) fillPhotoStrip(m); }
+    const al = $('album'); if (!al) return; al.innerHTML = '';
+    if (!ps.length) { al.appendChild(el$('p', 'empty', '制覇した場所で「写真を残す」を押すと、ここにアルバムができます。')); return; }
+    al.appendChild(el$('div', 'head', `写真 ${ps.length}枚（${has.size}か所）`));
+    const g = el$('div', 'grid');
+    for (const p of ps.sort((a, b) => b.date.localeCompare(a.date) || b.k - a.k)) {
+      const f = el$('figure'); const im = el$('img'); im.src = URL.createObjectURL(p.thumb);
+      f.append(im, el$('figcaption', null, p.name)); f.addEventListener('click', () => viewPhoto(p)); g.appendChild(f);
+    }
+    al.appendChild(g);
+  }
   // 制覇の記録（行ったところ）：この端末に保存。地図のしるしに印、一覧で見返せる
   const VIS_KEY = 'jomon_visited_v1', VIS_TYPES = ['坂', '神社', '遺跡', '谷', 'スポット'];
   let visited = {}; try { visited = JSON.parse(localStorage.getItem(VIS_KEY) || '{}'); } catch (e) {}
@@ -483,6 +551,7 @@
     const on = !!visited[rec.id];
     rec.el.classList.toggle('visited', on);
     if (rec.visBtn) { rec.visBtn.textContent = on ? `制覇ずみ（${visited[rec.id]}）・取り消す` : '行った！（制覇）'; rec.visBtn.classList.toggle('in', on); }
+    if (rec.photoBox) rec.photoBox.style.display = on ? 'block' : 'none';
   }
   function renderVisited() {
     const box = $('visited'); if (!box) return; box.innerHTML = '';
@@ -524,6 +593,17 @@
       rec.visBtn = el$('button', 'add vis', '行った！（制覇）');
       rec.visBtn.addEventListener('click', ev => { ev.stopPropagation(); setVisited(rec, !visited[rec.id]); });
       box.insertBefore(rec.visBtn, rec.addBtn);
+      rec.photoBox = el$('div', 'photobox');
+      const lab = el$('label', 'add photo', '写真を残す');
+      const inp = el$('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment'); inp.style.display = 'none';
+      inp.addEventListener('change', async () => { const f = inp.files && inp.files[0]; if (!f) return;
+        lab.firstChild.textContent = '保存中…';
+        try { await addPhoto(rec.id, name, f); if (!visited[rec.id]) setVisited(rec, true); } catch (e) { alertBox(rec, '写真を保存できませんでした'); }
+        lab.firstChild.textContent = '写真を残す'; inp.value = ''; refreshPhotos(); });
+      lab.appendChild(inp);
+      rec.photoStrip = el$('div', 'strip');
+      rec.photoBox.append(lab, rec.photoStrip, el$('div', 'fixhelp', '住宅地では、坂の標識・神社・地形など、家や人が写らないものを撮りましょう。写真はこのスマホの中だけに保存され、どこにも送られません。'));
+      box.insertBefore(rec.photoBox, rec.addBtn);
     }
     // 位置を直すモードのときだけ出る道具：Googleマップで見る／座標を貼って移す
     const ft = el$('div', 'fixtools');
@@ -1336,8 +1416,9 @@
     }
     if (s.dest) box.dataset.dest = s.dest;
     box.appendChild(el$('div', 'visit', s.dest ? '見学できる場所があります（「ここまで歩く」で案内）' :
-      /包蔵地|散布地/.test(s.k) ? '地上に見学できるものはありません。土の中に遺跡が眠っている場所です（工事のときに調査されます）' : '地上に見学できるものは、ほとんどありません'));
-    box.appendChild(walkLink(ll, s.dest));
+      '地上に見学できるものはありません。土の中に遺跡が眠っている場所で、今は多くが住宅地です。しるしは丁目のだいたいの位置で、特定の家を指すものではありません。道から町並みを眺めて、昔の暮らしを想像してみてください。敷地に入ったり、家や人を撮ったりしないでください。'));
+    // 見学できる場所だけ道案内する（住宅地の中の一点へ人を連れていかない）
+    if (s.dest || !s.c) box.appendChild(walkLink(ll, s.dest));
     box.appendChild(el$('div', 'src', '出典：' + s.s + (s.c ? '。位置は丁目の代表点（目安）' : '')));
     addMarker({cls: ECLS[main] + (s.big ? ' big' : ''), icon: ECLS[main], dots: eras.filter(e => e !== main).map(e => ECLS[e]), ll, box, keys: eras, name: s.n, type: '遺跡'});
   }
@@ -1494,7 +1575,7 @@
 
 
   map.on('load', () => applyFixes());
-  setTimeout(renderVisited, 0); map.on('load', renderVisited);
+  setTimeout(() => { renderVisited(); refreshPhotos(); }, 0); map.on('load', renderVisited);
 
   // コース：吹き出しの「コースに入れる」で集め、番号つきで結び、Googleマップの徒歩ルートで開く
   const COURSE_KEY = 'jomon_course_v1';
