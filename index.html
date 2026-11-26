@@ -165,6 +165,16 @@
   #near .item .ds{white-space:nowrap;color:var(--ink2);font-size:12px}
   #near .item .mk{cursor:inherit;flex:0 0 auto}
   #todoList{margin:6px 0}
+  #rev{margin-bottom:8px}
+  #revNow{background:#FFFCF4;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.55}
+  #revNow b{font:700 16px/1.4 var(--serif);color:var(--saka)}
+  #revNow .st{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:9px;background:#EFE7D3;margin-left:6px}
+  #revNow .st.ng{background:#F6DCD2;color:#8A2E17}
+  #revNow .prog{font-size:11.5px;color:var(--ink2);margin-bottom:3px}
+  #revNow a{font-size:12px;color:var(--key);margin-right:10px}
+  .revbtns{display:flex;gap:6px;margin:6px 0 2px}
+  .revbtns button{flex:1;min-height:40px;padding:4px 6px}
+  .revbtns #revOk{flex:2}
   body.editing .panel{max-width:460px}
   body.editing .body{max-height:calc(100vh - 110px)}
   #todoList summary{font-size:12.5px}
@@ -249,7 +259,17 @@
         </div>
         <p class="note" id="editNote">位置を直すモードにすると、建物や神社の記号まで載った平らな地図に切り替わります。しるしを指で長押ししてドラッグするか、しるしを押して「Googleマップでこの場所を見る」で確かめ、座標を貼って移せます。現地では、しるしを選んでから「今いる場所へ」を押すと、そこへ移ります。直した位置はこの端末に残り、「書き出す」でコピーしてチャットに貼ってもらえれば、地図のデータに入れます。</p>
         <div id="addBox" style="display:none;margin:8px 0">
-          <button id="bulkBtn" class="primary" style="width:100%;margin-bottom:8px">全部の坂を自動チェックする</button>
+          <div id="rev">
+            <button id="revStart" class="primary" style="width:100%;margin-bottom:6px">坂を順番に確認する（Googleマップと見比べる）</button>
+            <div id="revCtl" style="display:none">
+              <div id="revNow"></div>
+              <div class="revbtns">
+                <button id="revOk" class="primary">OK・次へ</button><button id="revSkip">あとで</button><button id="revBack">戻る</button><button id="revEnd">終わる</button>
+              </div>
+              <p class="note">Googleマップは別のタブに開きます（このしるしの位置にピン）。ずれていたら、しるしをドラッグして直してから「OK・次へ」。</p>
+            </div>
+          </div>
+          <button id="bulkBtn" style="width:100%;margin-bottom:8px">全部の坂を自動チェックする</button>
           <div class="pasterow">
             <select id="addName" style="flex:1;min-width:0;font-size:14px;padding:6px;border:1px solid #C9BD9C;border-radius:8px"></select>
             <button id="addBtn">地図をタップして置く</button>
@@ -1798,6 +1818,7 @@
     $('hereBtn').disabled = !(editing && here && picked);
     document.body.classList.toggle('editing', editing);
     $('addBox').style.display = editing ? 'block' : 'none';
+    if (!editing) revStop();
     if (editing) showCands(); else clearCands();
     for (const r of allMarkers) { if (r.del) r.del.style.display = editing ? 'block' : 'none'; if (r.okb) r.okb.style.display = editing ? 'block' : 'none'; }
     renderTodo();
@@ -1953,6 +1974,78 @@
       box.appendChild(d);
     }
   }
+
+  // 坂を順番に確認する：まだ確認していない坂へ順に移動し、別タブのGoogleマップも同じ場所へ
+  let revQ = [], revI = 0;
+  const revStatus = r => r.status === 'ok' ? ['向きOK', ''] : r.status === 'ng' ? ['向きが合わない・平ら', 'ng'] : r.status ? ['向きのチェック不可', ''] : ['まだ自動チェックしていない', ''];
+  function revBuild() {
+    const left = allMarkers.filter(r => r.type === '坂' && r.added && !r.added.ok && !r.added.hidden);
+    const rank = r => r.status === 'ng' ? 0 : (r.status === 'nodir' || r.status === 'unk') ? 1 : !r.status ? 2 : 3;
+    const out = [];
+    for (let g = 0; g <= 3; g++) {
+      const pool = left.filter(r => rank(r) === g);
+      let cur = out.length ? out[out.length - 1].ll : [139.752, 35.716];
+      while (pool.length) {
+        let bi = 0, bd = Infinity;
+        pool.forEach((r, i) => { const d = distM(cur, r.ll); if (d < bd) { bd = d; bi = i; } });
+        const r = pool.splice(bi, 1)[0]; out.push(r); cur = r.ll;
+      }
+    }
+    return out;
+  }
+  function revShow() {
+    while (revI < revQ.length && revQ[revI].added.ok) revI++;
+    const box = $('revNow'); box.innerHTML = '';
+    const total = allMarkers.filter(r => r.type === '坂' && r.added && !r.added.hidden).length;
+    const done = allMarkers.filter(r => r.type === '坂' && r.added && r.added.ok).length;
+    if (revI >= revQ.length) {
+      box.append(el$('div', 'prog', `確認ずみ ${done}／${total}本`), el$('div', null, 'この回の坂はおしまいです。おつかれさまでした。「直した位置を書き出す」でチャットに貼ってください。'));
+      return;
+    }
+    const r = revQ[revI], [lng, lat] = r.ll;
+    box.appendChild(el$('div', 'prog', `確認ずみ ${done}／${total}本　・　この回 ${revI + 1}／${revQ.length}本目`));
+    const h = el$('div'); h.appendChild(el$('b', null, r.name));
+    const stEl = el$('span'); const paintSt = () => { const [st, cls] = revStatus(r); stEl.className = 'st ' + cls; stEl.textContent = '自動チェック：' + st; };
+    paintSt(); h.appendChild(stEl); box.appendChild(h);
+    const k = sakaInfo(r.name), meta = slopeMeta(r.name);
+    if (k) box.appendChild(el$('div', null, '所在地：文京区' + k[4] + (k[3] ? '／別名 ' + k[3] : '')));
+    if (meta.m) box.appendChild(el$('div', null, '目印：' + meta.m));
+    const links = el$('div');
+    const g1 = el$('a', null, 'Googleマップをもう一度開く'); g1.href = revUrl(r); g1.target = 'gmap'; g1.referrerPolicy = 'no-referrer';
+    const g2 = el$('a', null, '名前でGoogle検索'); g2.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(r.name.replace(/（(.*?)）/, ' $1') + ' 文京区'); g2.target = 'gmap'; g2.referrerPolicy = 'no-referrer';
+    links.append(g1, g2);
+    if (k) { const l = el$('a', null, '坂学会のページ'); l.href = SAKA_URL(k[0]); l.target = 'sakagakkai'; links.appendChild(l); }
+    box.appendChild(links);
+    map.easeTo({center: r.ll, zoom: 18, pitch: 0, bearing: 0});
+    const pop = r.marker.getPopup(); if (pop && !pop.isOpen()) r.marker.togglePopup();
+    map.once('idle', () => { if (revQ[revI] === r) { slopeCheck(r); paintSt(); } });
+  }
+  const revUrl = r => 'https://www.google.com/maps/search/?api=1&query=' + r.ll[1].toFixed(6) + ',' + r.ll[0].toFixed(6);
+  function revOpenG() { const r = revQ[revI]; if (r) window.open(revUrl(r), 'gmap', 'noreferrer'); }
+  $('revStart').addEventListener('click', () => {
+    revQ = revBuild(); revI = 0;
+    $('revStart').style.display = 'none'; $('revCtl').style.display = 'block';
+    revShow(); revOpenG();
+  });
+  $('revOk').addEventListener('click', () => {
+    const r = revQ[revI]; if (!r) return;
+    r.added.ok = true; keep(r.added); if (r.okb) r.okb.textContent = '確認ずみ（取り消す）';
+    const pop = r.marker.getPopup(); if (pop && pop.isOpen()) r.marker.togglePopup();
+    revI++; revShow(); renderTodo(); revOpenG();
+  });
+  $('revSkip').addEventListener('click', () => {
+    const r = revQ[revI]; if (!r) return;
+    const pop = r.marker.getPopup(); if (pop && pop.isOpen()) r.marker.togglePopup();
+    revI++; revShow(); revOpenG();
+  });
+  $('revBack').addEventListener('click', () => {
+    if (revI === 0) return;
+    const r = revQ[revI]; if (r) { const pop = r.marker.getPopup(); if (pop && pop.isOpen()) r.marker.togglePopup(); }
+    revI--; if (revQ[revI].added.ok) { revQ[revI].added.ok = false; keep(revQ[revI].added); if (revQ[revI].okb) revQ[revI].okb.textContent = 'この位置で確認した'; }
+    revShow(); renderTodo(); revOpenG();
+  });
+  $('revEnd').addEventListener('click', revStop);
+  function revStop() { revQ = []; revI = 0; $('revStart').style.display = 'block'; $('revCtl').style.display = 'none'; }
   // 坂学会の地図リンクの位置がある候補を、まとめて置いて自動チェックする
   $('bulkBtn').addEventListener('click', () => {
     const recs = allMarkers.filter(r => r.added && !r.added.ok);
