@@ -443,7 +443,7 @@
   function moveTo(rec, ll, save) {
     rec.ll = ll; rec.marker.setLngLat(ll);
     if (rec.walk && !rec.walk.dataset.fixed) rec.walk.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
-    if (save && rec.added) { rec.added.ll = ll; saveAdded(); }
+    if (save && rec.added) { rec.added.ll = ll; saveAdded(); if (typeof slopeCheck === 'function') slopeCheck(rec); }
     else if (save) { fixes[rec.type + '|' + rec.name] = ll; try { localStorage.setItem(FIX_KEY, JSON.stringify(fixes)); } catch (e) {} }
   }
   function applyFixes() { for (const r of allMarkers) { const f = fixes[r.type + '|' + r.name]; if (f) moveTo(r, f, false); } }
@@ -1431,7 +1431,7 @@
     // 直すときは、建物や神社の記号まで載った平らな標準地図にする（立体だとずれて見えるため）
     if (map.getLayer('std')) map.setLayoutProperty('std', 'visibility', editing ? 'visible' : 'none');
     for (const id of ['relief', 'shade']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', editing ? 'none' : 'visible');
-    if (editing) { map.setTerrain(null); exEff = 1; map.easeTo({pitch: 0, bearing: 0, zoom: Math.max(map.getZoom(), 16.5)}); }
+    if (editing) { map.setTerrain({source: 'terrainSrc', exaggeration: 1}); exEff = 1; map.easeTo({pitch: 0, bearing: 0, zoom: Math.max(map.getZoom(), 16.5)}); }
     else { exEff = null; applyEx(); map.easeTo({pitch: 55}); }
   });
   $('hereBtn').addEventListener('click', () => { if (picked && here) { moveTo(picked, here.map(v => +v.toFixed(6)), true); $('hereBtn').textContent = `「${picked.name}」を今いる場所へ動かしました`; } });
@@ -1462,14 +1462,37 @@
     if (k) { const l = el$('a', 'sakalink', '坂学会のページ（くわしい説明と標識）'); l.href = SAKA_URL(k[0]); l.target = '_blank'; l.rel = 'noopener'; box.appendChild(l); }
     return {box, x};
   }
+  // 置いた坂の自動チェック：まわり約40mの標高から、坂になっているか・どちらへ上るかを調べる
+  const DIRS = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+  function slopeCheck(rec) {
+    if (!rec.chk) return;
+    const [lng, lat] = rec.ll, d = 40, dLat = d / 111320, dLng = d / (111320 * Math.cos(lat * Math.PI / 180));
+    const h0 = elev({lng, lat});
+    if (h0 == null) { rec.chk.textContent = '標高を読み込み中です。少し待ってからもう一度押してください。'; return; }
+    let best = null, all = [];
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4, h = elev({lng: lng + Math.sin(a) * dLng, lat: lat + Math.cos(a) * dLat});
+      if (h == null) continue; all.push(h);
+      if (!best || h > best.h) best = {i, h};
+    }
+    if (!best) { rec.chk.textContent = ''; return; }
+    const diff = Math.max(...all) - Math.min(...all);
+    const k = sakaInfo(rec.name);
+    rec.chk.textContent = diff < 1.5
+      ? `自動チェック：この点のまわり約40mはほぼ平らです（高低差 約${diff.toFixed(1)}m）。坂の上か下の平らなところに置いているかもしれません。`
+      : `自動チェック：この点は${DIRS[best.i]}の方へ上る斜面です（まわり約40mで高低差 約${diff.toFixed(1)}m、標高データからの目安）。` +
+        (k ? '坂学会のページの「方向」と合っているか見てください。' : '');
+  }
   function placeSlope(item, isNew) {
     const {box, x} = slopeBox(item.n);
     box.appendChild(walkLink(item.ll));
     box.appendChild(el$('div', 'src', (x ? '出典：' + x.s + '。' : '') + 'しるしの位置は、現地や地図で確かめて置いたもの'));
+    const chk = el$('div', 'visit'); box.appendChild(chk);
     const del = el$('button', 'add', 'このしるしを消す'); del.style.display = 'none';
     box.appendChild(del);
     const rec = addMarker({cls: 'saka', icon: 'saka', ll: item.ll, box, keys: ['谷'], name: item.n, type: '坂'});
-    rec.added = item; rec.del = del;
+    rec.added = item; rec.del = del; rec.chk = chk;
+    rec.el.addEventListener('click', () => slopeCheck(rec));
     rec.marker.setDraggable(editing);
     if (editing) del.style.display = 'block';
     del.addEventListener('click', ev => { ev.stopPropagation(); rec.marker.remove(); allMarkers.splice(allMarkers.indexOf(rec), 1);
@@ -1507,7 +1530,8 @@
     if (!editing || !placing) return;
     const n = $('addName').value || $('addOther').value.trim();
     if (!n) { $('addMsg').textContent = '坂の名前を入れてください。'; return; }
-    placeSlope({t: '坂', n, ll: [+e.lngLat.lng.toFixed(6), +e.lngLat.lat.toFixed(6)]}, true);
+    const nr = placeSlope({t: '坂', n, ll: [+e.lngLat.lng.toFixed(6), +e.lngLat.lat.toFixed(6)]}, true);
+    slopeCheck(nr); nr.marker.togglePopup();
     placing = false; $('addBtn').classList.remove('on'); fillAddNames();
     $('addMsg').textContent = `「${n}」を置きました。ずれていたらドラッグで直せます。`;
   });
