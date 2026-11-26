@@ -99,6 +99,10 @@
   ul.slopes li{padding:6px 0;border-top:1px dotted var(--line)}
   ul.slopes b{font-family:var(--serif);display:block}
   ul.slopes .where{display:block;font-size:11px;color:var(--ink2)}
+  .mk.cand{width:auto;height:26px;border-radius:13px;padding:0 9px 0 3px;gap:3px;background:#FFFAF0;border:2px dashed #7A5A3A;
+    font:700 12px/1 var(--serif);color:#7A5A3A;opacity:.92}
+  .mk.cand svg{stroke:#7A5A3A}
+  .mk.cand svg .f{fill:#7A5A3A}
   .mk.hidden{display:none}
   /* 地図の上のしるしは地図ライブラリが位置を決めるので absolute に戻す（relative だとずれて動く） */
   .maplibregl-marker.mk{position:absolute}
@@ -210,7 +214,7 @@
           </div>
           <p class="note" id="addHint"></p>
           <input id="addOther" placeholder="坂の名前（一覧にないとき）" style="display:none;width:100%;margin-top:6px;font-size:14px;padding:6px 8px;border:1px solid #C9BD9C;border-radius:8px">
-          <p class="note" id="addMsg">文京区の坂127か所（坂学会の一覧）から選べます。所在地と坂学会のページで目印を確かめてから「地図をタップして置く」を押し、標識のある場所をタップしてください。置いたあともドラッグで動かせます。</p>
+          <p class="note" id="addMsg">位置を直すモードにすると、下調べ済みの坂が点線の「候補」として地図に出ます。候補をドラッグして坂の場所に置けば確定です。一覧にない坂は、文京区の坂127か所（坂学会の一覧）から選べます。所在地と坂学会のページで目印を確かめてから「地図をタップして置く」を押し、標識のある場所をタップしてください。置いたあともドラッグで動かせます。</p>
         </div>
         <textarea id="exportBox" style="display:none;width:100%;height:90px;font-size:11px"></textarea>
         <div class="row">
@@ -1464,6 +1468,7 @@
     $('hereBtn').disabled = !(editing && here && picked);
     document.body.classList.toggle('editing', editing);
     $('addBox').style.display = editing ? 'block' : 'none';
+    if (editing) showCands(); else clearCands();
     for (const r of allMarkers) if (r.del) r.del.style.display = editing ? 'block' : 'none';
     // 直すときは、建物や神社の記号まで載った平らな標準地図にする（立体だとずれて見えるため）
     if (map.getLayer('std')) map.setLayoutProperty('std', 'visibility', editing ? 'visible' : 'none');
@@ -1543,6 +1548,34 @@
       added.splice(added.indexOf(item), 1); saveAdded(); });
     if (isNew) { added.push(item); saveAdded(); }
     return rec;
+  }
+  // 位置を直すモードのとき、まだ置いていない坂を「候補」として出す（探しはじめの場所。ドラッグするか「ここで確定」で置く）
+  let candMarkers = [];
+  function clearCands() { for (const m of candMarkers) m.remove(); candMarkers = []; }
+  function showCands() {
+    clearCands();
+    const placed = new Set(added.map(a => a.n));
+    for (const x of SLOPES) {
+      const ll0 = x.c || x.ll; if (!ll0 || placed.has(x.n)) continue;
+      const el = el$('div', 'mk saka cand'); el.innerHTML = iconSvg('saka'); el.appendChild(el$('span', 'lbl', x.n));
+      const box = el$('div', 'pop saka');
+      box.append(el$('div', 'kind', '坂の候補（まだ確かめていない場所）'), el$('h3', null, x.n));
+      if (x.m) box.appendChild(el$('p', null, '目印：' + x.m));
+      box.appendChild(el$('p', 'meta', x.a));
+      const k = sakaInfo(x.n);
+      if (k) { const l = el$('a', 'sakalink', '坂学会のページで目印を見る'); l.href = SAKA_URL(k[0]); l.target = '_blank'; l.rel = 'noopener'; box.appendChild(l); }
+      box.appendChild(el$('div', 'fixhelp', 'このしるしをドラッグして坂の場所に置くと、確定します。今の場所で合っていれば下のボタンで確定。'));
+      const ok = el$('button', 'add', 'この位置で確定'); box.appendChild(ok);
+      const m = new maplibregl.Marker({element: el, draggable: true}).setLngLat(ll0).setPopup(new maplibregl.Popup({offset: 14, maxWidth: '300px'}).setDOMContent(box)).addTo(map);
+      const confirm = () => {
+        const p = m.getLngLat(); m.remove(); candMarkers.splice(candMarkers.indexOf(m), 1);
+        const nr = placeSlope({t: '坂', n: x.n, ll: [+p.lng.toFixed(6), +p.lat.toFixed(6)]}, true);
+        slopeCheck(nr); nr.marker.togglePopup(); fillAddNames();
+      };
+      ok.addEventListener('click', ev => { ev.stopPropagation(); confirm(); });
+      m.on('dragend', confirm);
+      candMarkers.push(m);
+    }
   }
   for (const it of added) placeSlope(it, false);
   // 坂の名前の選択肢（まだ置いていないものを上に）
