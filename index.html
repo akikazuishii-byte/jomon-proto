@@ -202,6 +202,14 @@
           <button id="exportBtn">直した位置を書き出す</button>
         </div>
         <p class="note" id="editNote">位置を直すモードにすると、建物や神社の記号まで載った平らな地図に切り替わります。しるしを指で長押ししてドラッグするか、しるしを押して「Googleマップでこの場所を見る」で確かめ、座標を貼って移せます。現地では、しるしを選んでから「今いる場所へ」を押すと、そこへ移ります。直した位置はこの端末に残り、「書き出す」でコピーしてチャットに貼ってもらえれば、地図のデータに入れます。</p>
+        <div id="addBox" style="display:none;margin:8px 0">
+          <div class="pasterow">
+            <select id="addName" style="flex:1;min-width:0;font-size:14px;padding:6px;border:1px solid #C9BD9C;border-radius:8px"></select>
+            <button id="addBtn">地図をタップして置く</button>
+          </div>
+          <input id="addOther" placeholder="坂の名前（一覧にないとき）" style="display:none;width:100%;margin-top:6px;font-size:14px;padding:6px 8px;border:1px solid #C9BD9C;border-radius:8px">
+          <p class="note" id="addMsg">坂の名前を選んで「地図をタップして置く」を押し、標識のある場所をタップしてください。置いたあともドラッグで動かせます。</p>
+        </div>
         <textarea id="exportBox" style="display:none;width:100%;height:90px;font-size:11px"></textarea>
         <div class="row">
           <label for="ex" style="font-size:13px">高さの強調</label>
@@ -433,7 +441,8 @@
   function moveTo(rec, ll, save) {
     rec.ll = ll; rec.marker.setLngLat(ll);
     if (rec.walk && !rec.walk.dataset.fixed) rec.walk.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
-    if (save) { fixes[rec.type + '|' + rec.name] = ll; try { localStorage.setItem(FIX_KEY, JSON.stringify(fixes)); } catch (e) {} }
+    if (save && rec.added) { rec.added.ll = ll; saveAdded(); }
+    else if (save) { fixes[rec.type + '|' + rec.name] = ll; try { localStorage.setItem(FIX_KEY, JSON.stringify(fixes)); } catch (e) {} }
   }
   function applyFixes() { for (const r of allMarkers) { const f = fixes[r.type + '|' + r.name]; if (f) moveTo(r, f, false); } }
   function addMarker({cls, icon, dots, ll, box, keys, name, type}) {
@@ -1278,6 +1287,8 @@
     for (const r of allMarkers) r.marker.setDraggable(editing);
     $('hereBtn').disabled = !(editing && here && picked);
     document.body.classList.toggle('editing', editing);
+    $('addBox').style.display = editing ? 'block' : 'none';
+    for (const r of allMarkers) if (r.del) r.del.style.display = editing ? 'block' : 'none';
     // 直すときは、建物や神社の記号まで載った平らな標準地図にする（立体だとずれて見えるため）
     if (map.getLayer('std')) map.setLayoutProperty('std', 'visibility', editing ? 'visible' : 'none');
     for (const id of ['relief', 'shade']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', editing ? 'none' : 'visible');
@@ -1286,11 +1297,68 @@
   });
   $('hereBtn').addEventListener('click', () => { if (picked && here) { moveTo(picked, here.map(v => +v.toFixed(6)), true); $('hereBtn').textContent = `「${picked.name}」を今いる場所へ動かしました`; } });
   $('exportBtn').addEventListener('click', async () => {
-    const txt = JSON.stringify(fixes, null, 1);
-    const box = $('exportBox'); box.style.display = 'block'; box.value = Object.keys(fixes).length ? txt : 'まだ直した位置はありません';
+    const txt = JSON.stringify({fixes, added}, null, 1);
+    const box = $('exportBox'); box.style.display = 'block'; box.value = (Object.keys(fixes).length || added.length) ? txt : 'まだ直した位置や置いたしるしはありません';
     try { await navigator.clipboard.writeText(txt); $('exportBtn').textContent = 'コピーしました'; } catch (e) { box.select(); }
   });
-  map.on('click', e => { showHeight(e.lngLat, 'この場所の'); describeTerrain(e.lngLat); });
+  // 坂のしるしを自分で置く（位置を直すモードのとき）。この端末に保存し、書き出してデータに反映する
+  const ADD_KEY = 'jomon_added_v1';
+  let added = []; try { added = JSON.parse(localStorage.getItem(ADD_KEY) || '[]'); } catch (e) {}
+  function saveAdded() { try { localStorage.setItem(ADD_KEY, JSON.stringify(added)); } catch (e) {} }
+  function slopeBox(n) {
+    const x = SLOPES.find(z => z.n === n);
+    const box = el$('div', 'pop saka');
+    box.appendChild(el$('div', 'kind', '坂'));
+    const h = el$('h3', null, n); if (x && x.y) h.appendChild(el$('small', null, x.y)); box.appendChild(h);
+    if (x) {
+      box.appendChild(el$('div', 'meta', x.a));
+      box.appendChild(el$('div', 'sub2', '名前の由来')); box.appendChild(el$('p', null, x.t));
+      box.appendChild(el$('div', 'sub2', '地形の中のこの坂')); box.appendChild(el$('p', null, x.g));
+    } else box.appendChild(el$('p', null, '由来はこれから調べます。'));
+    return {box, x};
+  }
+  function placeSlope(item, isNew) {
+    const {box, x} = slopeBox(item.n);
+    box.appendChild(walkLink(item.ll));
+    box.appendChild(el$('div', 'src', (x ? '出典：' + x.s + '。' : '') + 'しるしの位置は、現地や地図で確かめて置いたもの'));
+    const del = el$('button', 'add', 'このしるしを消す'); del.style.display = 'none';
+    box.appendChild(del);
+    const rec = addMarker({cls: 'saka', icon: 'saka', ll: item.ll, box, keys: ['谷'], name: item.n, type: '坂'});
+    rec.added = item; rec.del = del;
+    rec.marker.setDraggable(editing);
+    if (editing) del.style.display = 'block';
+    del.addEventListener('click', ev => { ev.stopPropagation(); rec.marker.remove(); allMarkers.splice(allMarkers.indexOf(rec), 1);
+      added.splice(added.indexOf(item), 1); saveAdded(); });
+    if (isNew) { added.push(item); saveAdded(); }
+    return rec;
+  }
+  for (const it of added) placeSlope(it, false);
+  // 坂の名前の選択肢（まだ置いていないものを上に）
+  function fillAddNames() {
+    const sel = $('addName'); sel.innerHTML = '';
+    const placed = new Set(added.map(a => a.n));
+    for (const x of [...SLOPES].sort((a, b) => placed.has(a.n) - placed.has(b.n))) {
+      const o = el$('option', null, x.n + (placed.has(x.n) ? '（置いた）' : '')); o.value = x.n; sel.appendChild(o);
+    }
+    const o = el$('option', null, 'その他（名前を入れる）'); o.value = ''; sel.appendChild(o);
+  }
+  fillAddNames();
+  $('addName').addEventListener('change', () => { $('addOther').style.display = $('addName').value ? 'none' : 'block'; });
+  let placing = false;
+  $('addBtn').addEventListener('click', () => {
+    placing = !placing;
+    $('addBtn').classList.toggle('on', placing);
+    $('addMsg').textContent = placing ? '地図の上の、坂の標識がある場所をタップしてください。' : '坂の名前を選んで「地図をタップして置く」を押し、標識のある場所をタップしてください。置いたあともドラッグで動かせます。';
+  });
+  map.on('click', e => {
+    if (!editing || !placing) return;
+    const n = $('addName').value || $('addOther').value.trim();
+    if (!n) { $('addMsg').textContent = '坂の名前を入れてください。'; return; }
+    placeSlope({t: '坂', n, ll: [+e.lngLat.lng.toFixed(6), +e.lngLat.lat.toFixed(6)]}, true);
+    placing = false; $('addBtn').classList.remove('on'); fillAddNames();
+    $('addMsg').textContent = `「${n}」を置きました。ずれていたらドラッグで直せます。`;
+  });
+  map.on('click', e => { if (editing && placing) return; showHeight(e.lngLat, 'この場所の'); describeTerrain(e.lngLat); });
   geo.on('geolocate', e => {
     here = [e.coords.longitude, e.coords.latitude];
     $('hereBtn').disabled = !(editing && picked);
