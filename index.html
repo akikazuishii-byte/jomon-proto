@@ -157,7 +157,15 @@
     </section>
     <section>
       <details>
-        <summary>表示の設定</summary>
+        <summary>表示の設定・位置を直す</summary>
+        <p class="note" id="osmStatus">坂の線：読み込み中…</p>
+        <div class="btns">
+          <button id="editBtn">位置を直すモード</button>
+          <button id="hereBtn" disabled>選んだしるしを今いる場所へ</button>
+          <button id="exportBtn">直した位置を書き出す</button>
+        </div>
+        <p class="note" id="editNote">位置を直すモードでは、しるしを指で長押ししてドラッグすると動かせます。現地では、しるしを選んでから「今いる場所へ」を押すと、そこへ移ります。直した位置はこの端末に残り、「書き出す」でコピーしてチャットに貼ってもらえれば、地図のデータに入れます。</p>
+        <textarea id="exportBox" style="display:none;width:100%;height:90px;font-size:11px"></textarea>
         <div class="row">
           <label for="ex" style="font-size:13px">高さの強調</label>
           <input id="ex" type="range" min="1" max="6" step="0.5" value="3">
@@ -273,13 +281,13 @@
   const spots = [
     {name: '千石', ll: [139.7440, 35.7275], start: true,
       text: 'スタート地点。本郷台の上。ここから坂を下ると谷へ入ります。'},
-    {name: '白山神社', ll: [139.7517, 35.7225],
+    {name: '白山神社', ll: [139.750809, 35.722187],
       text: '白山から千石方向へ続く谷（指ヶ谷・鶏声ヶ窪）のそば。', src: '『東京「スリバチ」地形散歩』本郷エリア'},
     {name: '小石川植物園', ll: [139.7473, 35.7177],
       text: '小石川の谷。千石の南を流れていた小石川は今は暗渠です。縄文の海がこの谷に入っていたかは標高で確かめます。', src: '『東京「スリバチ」地形散歩』コラム'},
     {name: '護国寺', ll: [139.7273, 35.7186],
       text: '境内が縄文の埋蔵文化財包蔵地。前の地下約25mからセイウチの頭骨が見つかっています。', src: '文京区遺跡一覧／貝塚爽平『東京の自然史』'},
-    {name: '根津神社', ll: [139.7607, 35.7203],
+    {name: '根津神社', ll: [139.760773, 35.720383],
       text: '本郷台の崖下。坂と崖下の世界の舞台。', src: '中沢新一『アースダイバー』第6章'},
     {name: '五条天神（上野）', ll: [139.7718, 35.7129],
       text: '上野台の岬のあたり。', src: '中沢新一『アースダイバー』第9章'}
@@ -309,6 +317,16 @@
   };
   const iconSvg = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
   for (const m of document.querySelectorAll('[data-icon]')) m.innerHTML = iconSvg(m.dataset.icon);
+  // 位置を直す（この端末に保存し、書き出してデータに反映する）
+  const FIX_KEY = 'jomon_pos_fix_v1';
+  let fixes = {}; try { fixes = JSON.parse(localStorage.getItem(FIX_KEY) || '{}'); } catch (e) {}
+  let editing = false, picked = null;
+  function moveTo(rec, ll, save) {
+    rec.ll = ll; rec.marker.setLngLat(ll);
+    if (rec.walk) rec.walk.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
+    if (save) { fixes[rec.type + '|' + rec.name] = ll; try { localStorage.setItem(FIX_KEY, JSON.stringify(fixes)); } catch (e) {} }
+  }
+  function applyFixes() { for (const r of allMarkers) { const f = fixes[r.type + '|' + r.name]; if (f) moveTo(r, f, false); } }
   function addMarker({cls, icon, dots, ll, box, keys, name, type}) {
     const el = el$('div', 'mk ' + cls);
     el.innerHTML = iconSvg(icon) + (dots && dots.length ? '<span class="dots">' + dots.map(d => `<i class="${d}"></i>`).join('') + '</span>' : '');
@@ -316,7 +334,9 @@
     const popup = new maplibregl.Popup({offset: 14, maxWidth: '300px'}).setDOMContent(box);
     const marker = new maplibregl.Marker({element: el, opacityWhenCovered: '0.55'}).setLngLat(ll).setPopup(popup).addTo(map);
     el.addEventListener('click', () => { const p = {lng: ll[0], lat: ll[1]}; showHeight(p, name + 'の'); describeTerrain(p); });
-    const rec = {el, ll, name, keys, marker, cls, type};
+    const rec = {el, ll, name, keys, marker, cls, type, walk: box.querySelector('a.walk')};
+    el.addEventListener('click', () => { picked = rec; $('hereBtn').disabled = !(editing && here); });
+    marker.on('dragend', () => { const p = marker.getLngLat(); moveTo(rec, [+p.lng.toFixed(6), +p.lat.toFixed(6)], true); });
     allMarkers.push(rec); return rec;
   }
   for (const s of spots) {
@@ -831,14 +851,29 @@
   for (const r of slopeRecs) r.rec.el.addEventListener('click', () => sakaHeights(r));
   map.on('load', async () => {
     const ways = await loadOsmSaka();
-    if (!ways) return;
+    if (!ways) { $('osmStatus').textContent = '坂の線：OpenStreetMapから読み込めませんでした（目安の位置で表示）'; applyFixes(); return; }
     const n = applyOsm(ways);
     setSakaLines(shown.has('坂'));
-    console.log('OpenStreetMapから坂の線', n, '本');
+    $('osmStatus').textContent = `坂の線：OpenStreetMapから${slopeRecs.filter(r => r.ends).length}か所の坂を読み込みました（全${slopeRecs.length}か所）。線が取れなかった坂は目安の位置です`;
+    applyFixes();
+  });
+  // 位置を直すモードの操作
+  $('editBtn').addEventListener('click', () => {
+    editing = !editing; $('editBtn').classList.toggle('on', editing);
+    $('editBtn').textContent = editing ? '位置を直すモード（オン）' : '位置を直すモード';
+    for (const r of allMarkers) r.marker.setDraggable(editing);
+    $('hereBtn').disabled = !(editing && here && picked);
+  });
+  $('hereBtn').addEventListener('click', () => { if (picked && here) { moveTo(picked, here.map(v => +v.toFixed(6)), true); $('hereBtn').textContent = `「${picked.name}」を今いる場所へ動かしました`; } });
+  $('exportBtn').addEventListener('click', async () => {
+    const txt = JSON.stringify(fixes, null, 1);
+    const box = $('exportBox'); box.style.display = 'block'; box.value = Object.keys(fixes).length ? txt : 'まだ直した位置はありません';
+    try { await navigator.clipboard.writeText(txt); $('exportBtn').textContent = 'コピーしました'; } catch (e) { box.select(); }
   });
   map.on('click', e => { showHeight(e.lngLat, 'この場所の'); describeTerrain(e.lngLat); });
   geo.on('geolocate', e => {
     here = [e.coords.longitude, e.coords.latitude];
+    $('hereBtn').disabled = !(editing && picked);
     const ll = {lng: here[0], lat: here[1]};
     showHeight(ll, '今いる場所の'); describeTerrain(ll);
     if ($('near').childElementCount) showNear();
