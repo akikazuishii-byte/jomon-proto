@@ -898,9 +898,38 @@
       btns.appendChild(b);
     }
     box.appendChild(btns);
-    const data = {type: 'FeatureCollection', features: course.length > 1 ? [{type: 'Feature', properties: {},
-      geometry: {type: 'LineString', coordinates: course.map(r => r.ll)}}] : []};
-    if (map.getSource && map.getSource('course')) map.getSource('course').setData(data);
+    drawCourseLine();
+  }
+  // 道に沿ったルート：OpenStreetMapのデータを使う経路検索（FOSSGISの公開サーバー、徒歩）。
+  // 試作向け（利用は控えめに、という決まり）。取れないときは直線の点線。
+  const routeCache = {};
+  let routeSeq = 0;
+  function setCourseData(coords, onRoad) {
+    if (!(map.getSource && map.getSource('course'))) return;
+    map.getSource('course').setData({type: 'FeatureCollection', features: coords.length > 1 ? [{type: 'Feature', properties: {road: onRoad ? 1 : 0},
+      geometry: {type: 'LineString', coordinates: coords}}] : []});
+  }
+  async function drawCourseLine() {
+    const pts = course.map(r => r.ll);
+    setCourseData(pts, false);
+    if (pts.length < 2) return;
+    const key = pts.map(p => p[0].toFixed(5) + ',' + p[1].toFixed(5)).join(';');
+    const seq = ++routeSeq;
+    let r = routeCache[key];
+    if (!r) {
+      try {
+        const res = await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/driving/${key}?overview=full&geometries=geojson`);
+        const j = await res.json();
+        if (j.code === 'Ok' && j.routes && j.routes[0]) r = routeCache[key] = {c: j.routes[0].geometry.coordinates, d: j.routes[0].distance};
+      } catch (e) {}
+    }
+    if (seq !== routeSeq) return; // 途中でコースが変わった
+    const sum = document.querySelector('#course .sum');
+    if (r) {
+      setCourseData(r.c, true);
+      if (sum) sum.textContent = `${course.length}か所・道のり約${(r.d / 1000).toFixed(1)}km、歩いて約${Math.round(r.d / 80)}分（OpenStreetMapのデータによる目安）。` +
+        (course.length > 10 ? '立ち寄り先が多いので、Googleマップで全部入らないことがあります。' : '');
+    } else if (sum) sum.textContent += '（道のルートが取れなかったので、直線で表示しています）';
   }
   // おすすめコース（スポットの名前で指定）
   const COURSES = [
@@ -910,8 +939,15 @@
   renderCourse();
   map.on('load', () => {
     map.addSource('course', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    map.addLayer({id: 'course-line', type: 'line', source: 'course', layout: {'line-cap': 'round', 'line-join': 'round'},
-      paint: {'line-color': '#E2C27A', 'line-width': 4, 'line-dasharray': [1.5, 1.2], 'line-opacity': 0.95}});
+    map.addSource('osmAttr', {type: 'geojson', data: {type: 'FeatureCollection', features: []},
+      attribution: 'ルート：<a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap</a> contributors／FOSSGIS'});
+    map.addLayer({id: 'osm-attr', type: 'circle', source: 'osmAttr'});
+    map.addLayer({id: 'course-case', type: 'line', source: 'course', layout: {'line-cap': 'round', 'line-join': 'round'},
+      paint: {'line-color': '#1F2A2E', 'line-width': 7, 'line-opacity': 0.35}});
+    map.addLayer({id: 'course-line', type: 'line', source: 'course', filter: ['==', ['get', 'road'], 1], layout: {'line-cap': 'round', 'line-join': 'round'},
+      paint: {'line-color': '#E2C27A', 'line-width': 4.5}});
+    map.addLayer({id: 'course-straight', type: 'line', source: 'course', filter: ['==', ['get', 'road'], 0], layout: {'line-cap': 'round', 'line-join': 'round'},
+      paint: {'line-color': '#E2C27A', 'line-width': 4, 'line-dasharray': [1.5, 1.2]}});
     renderCourse();
   });
 
