@@ -1418,7 +1418,7 @@
     box.appendChild(el$('div', 'visit', s.dest ? '見学できる場所があります（「ここまで歩く」で案内）' :
       '地上に見学できるものはありません。土の中に遺跡が眠っている場所で、今は多くが住宅地です。しるしは丁目のだいたいの位置で、特定の家を指すものではありません。道から町並みを眺めて、昔の暮らしを想像してみてください。敷地に入ったり、家や人を撮ったりしないでください。'));
     // 見学できる場所だけ道案内する（住宅地の中の一点へ人を連れていかない）
-    if (s.dest || !s.c) box.appendChild(walkLink(ll, s.dest));
+    if (s.dest || s.big) box.appendChild(walkLink(ll, s.dest));
     box.appendChild(el$('div', 'src', '出典：' + s.s + (s.c ? '。位置は丁目の代表点（目安）' : '')));
     addMarker({cls: ECLS[main] + (s.big ? ' big' : ''), icon: ECLS[main], dots: eras.filter(e => e !== main).map(e => ECLS[e]), ll, box, keys: eras, name: s.n, type: '遺跡'});
   }
