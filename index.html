@@ -78,6 +78,14 @@
   .mk.mark svg{width:14px;height:14px;stroke:#3E4446}
   .mk.eki{border-radius:6px}
   #map.far .mk.mark{display:none}
+  .fixtools{display:none;margin-top:8px;padding-top:4px;border-top:1px dashed var(--line)}
+  body.editing .fixtools{display:block}
+  .fixtools a.gm{display:block;text-align:center;padding:8px;border-radius:999px;border:1px solid var(--key);color:var(--key);text-decoration:none;font-weight:700;font-size:13px}
+  .fixhelp{font-size:11px;color:var(--ink2);margin:6px 0}
+  .pasterow{display:flex;gap:6px}
+  .pasterow input{flex:1;min-width:0;font-size:14px;padding:6px 8px;border:1px solid #C9BD9C;border-radius:8px}
+  .pasterow button{min-height:36px;padding:0 10px;font-size:12px}
+  .fixmsg{font-size:11.5px;color:var(--key);margin-top:4px}
   .mk.story{background:var(--key);border-color:var(--gold);width:32px;height:32px}
   .mk.start{background:var(--ink);border-color:var(--gold)}
   .mk.big{width:36px;height:36px;border:3px solid var(--gold)}
@@ -193,7 +201,7 @@
           <button id="hereBtn" disabled>選んだしるしを今いる場所へ</button>
           <button id="exportBtn">直した位置を書き出す</button>
         </div>
-        <p class="note" id="editNote">位置を直すモードでは、しるしを指で長押ししてドラッグすると動かせます。現地では、しるしを選んでから「今いる場所へ」を押すと、そこへ移ります。直した位置はこの端末に残り、「書き出す」でコピーしてチャットに貼ってもらえれば、地図のデータに入れます。</p>
+        <p class="note" id="editNote">位置を直すモードにすると、建物や神社の記号まで載った平らな地図に切り替わります。しるしを指で長押ししてドラッグするか、しるしを押して「Googleマップでこの場所を見る」で確かめ、座標を貼って移せます。現地では、しるしを選んでから「今いる場所へ」を押すと、そこへ移ります。直した位置はこの端末に残り、「書き出す」でコピーしてチャットに貼ってもらえれば、地図のデータに入れます。</p>
         <textarea id="exportBox" style="display:none;width:100%;height:90px;font-size:11px"></textarea>
         <div class="row">
           <label for="ex" style="font-size:13px">高さの強調</label>
@@ -288,6 +296,8 @@
     style: {
       version: 8,
       sources: {
+        std: {type: 'raster', tiles: [GSI + 'std/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 18,
+          attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>'},
         pale: {type: 'raster', tiles: [GSI + 'pale/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 18,
           attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>'},
         terrainSrc: demSource(),
@@ -300,7 +310,8 @@
         {id: 'relief', type: 'color-relief', source: 'reliefSrc',
           paint: {'color-relief-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.75, 15, 0.55, 17, 0.35], 'color-relief-color': reliefColors(sea)}},
         {id: 'shade', type: 'hillshade', source: 'shadeSrc',
-          paint: {'hillshade-exaggeration': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.75, 17, 0.9], 'hillshade-shadow-color': '#3b3424', 'hillshade-highlight-color': '#ffffff'}}
+          paint: {'hillshade-exaggeration': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.75, 17, 0.9], 'hillshade-shadow-color': '#3b3424', 'hillshade-highlight-color': '#ffffff'}},
+        {id: 'std', type: 'raster', source: 'std', layout: {visibility: 'none'}}
       ],
       terrain: {source: 'terrainSrc', exaggeration: ex}
     }
@@ -438,6 +449,29 @@
     rec.addBtn = el$('button', 'add', 'コースに入れる');
     rec.addBtn.addEventListener('click', ev => { ev.stopPropagation(); toggleCourse(rec); });
     box.insertBefore(rec.addBtn, rec.walk || null);
+    // 位置を直すモードのときだけ出る道具：Googleマップで見る／座標を貼って移す
+    const ft = el$('div', 'fixtools');
+    ft.appendChild(el$('div', 'sub2', '位置を直す'));
+    const gm = el$('a', 'gm', 'Googleマップでこの場所を見る');
+    gm.target = '_blank'; gm.rel = 'noopener';
+    const setGm = () => { gm.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(rec.dest || (type === '遺跡' || type === '谷' ? `${rec.ll[1].toFixed(6)},${rec.ll[0].toFixed(6)}` : name)); };
+    setGm(); gm.addEventListener('click', setGm);
+    const row = el$('div', 'pasterow');
+    const inp = el$('input'); inp.placeholder = '例 35.72190, 139.75081'; inp.inputMode = 'decimal';
+    const go = el$('button', null, 'この座標へ移す');
+    const msg = el$('div', 'fixmsg');
+    go.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const m = inp.value.match(/(-?\d+\.\d+)\s*[,、\s]\s*(-?\d+\.\d+)/);
+      if (!m) { msg.textContent = '「35.7219, 139.7508」の形で貼ってください'; return; }
+      let a = +m[1], b = +m[2]; if (a > 90) [a, b] = [b, a]; // 緯度, 経度 の順（Googleマップのコピー形式）
+      if (a < 20 || a > 46 || b < 122 || b > 154) { msg.textContent = '日本の座標ではないようです'; return; }
+      moveTo(rec, [+b.toFixed(6), +a.toFixed(6)], true); map.easeTo({center: rec.ll});
+      msg.textContent = '移しました（この端末に保存。書き出すとデータに反映できます）';
+    });
+    row.append(inp, go);
+    ft.append(gm, el$('div', 'fixhelp', 'Googleマップで正しい場所を長押しすると、上に座標（35.72…, 139.75…）が出ます。それをコピーして下に貼ってください。指でしるしをドラッグしても動かせます。'), row, msg);
+    box.appendChild(ft);
     el.addEventListener('click', () => { picked = rec; $('hereBtn').disabled = !(editing && here); });
     marker.on('dragend', () => { const p = marker.getLngLat(); moveTo(rec, [+p.lng.toFixed(6), +p.lat.toFixed(6)], true); });
     allMarkers.push(rec); return rec;
@@ -1018,6 +1052,7 @@
   $('jomon').addEventListener('click', () => setSea(4));
   // 拡大するほど高さの強調を弱める（拡大したとき、小さな段差が崖のように見えないように）
   function applyEx() {
+    if (editing) return;
     const z = map.getZoom(), f = z <= 14 ? 1 : z >= 17 ? 0.35 : 1 - 0.65 * (z - 14) / 3;
     const next = Math.max(1, +(ex * f).toFixed(2));
     if (next !== exEff) { exEff = next; map.setTerrain({source: 'terrainSrc', exaggeration: exEff}); }
@@ -1242,6 +1277,12 @@
     $('editBtn').textContent = editing ? '位置を直すモード（オン）' : '位置を直すモード';
     for (const r of allMarkers) r.marker.setDraggable(editing);
     $('hereBtn').disabled = !(editing && here && picked);
+    document.body.classList.toggle('editing', editing);
+    // 直すときは、建物や神社の記号まで載った平らな標準地図にする（立体だとずれて見えるため）
+    if (map.getLayer('std')) map.setLayoutProperty('std', 'visibility', editing ? 'visible' : 'none');
+    for (const id of ['relief', 'shade']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', editing ? 'none' : 'visible');
+    if (editing) { map.setTerrain(null); exEff = 1; map.easeTo({pitch: 0, bearing: 0, zoom: Math.max(map.getZoom(), 16.5)}); }
+    else { exEff = null; applyEx(); map.easeTo({pitch: 55}); }
   });
   $('hereBtn').addEventListener('click', () => { if (picked && here) { moveTo(picked, here.map(v => +v.toFixed(6)), true); $('hereBtn').textContent = `「${picked.name}」を今いる場所へ動かしました`; } });
   $('exportBtn').addEventListener('click', async () => {
