@@ -75,6 +75,14 @@
   .mk.start{background:var(--ink);border-color:var(--gold)}
   .mk.big{width:36px;height:36px;border:3px solid var(--gold)}
   .mk.big svg{width:21px;height:21px}
+  .mk.area{width:auto;height:28px;border-radius:14px;padding:0 10px 0 4px;gap:3px;background:rgba(47,111,149,.82);
+    border-width:1.5px;font:700 12px/1 var(--serif);letter-spacing:.06em}
+  #near .mk.area .lbl{display:none}
+  #near .mk.area{width:28px;padding:0;justify-content:center}
+  ul.slopes{margin:2px 0 0;padding:0;list-style:none;font-size:12.5px}
+  ul.slopes li{padding:6px 0;border-top:1px dotted var(--line)}
+  ul.slopes b{font-family:var(--serif);display:block}
+  ul.slopes .where{display:block;font-size:11px;color:var(--ink2)}
   .mk.hidden{display:none}
   /* 地図の上のしるしは地図ライブラリが位置を決めるので absolute に戻す（relative だとずれて動く） */
   .maplibregl-marker.mk{position:absolute}
@@ -142,8 +150,7 @@
         <button class="chip on" data-key="旧"><span class="mk kyu" data-icon="kyu"></span>旧石器</button>
         <button class="chip on" data-key="縄"><span class="mk jo" data-icon="jo"></span>縄文</button>
         <button class="chip on" data-key="弥"><span class="mk ya" data-icon="ya"></span>弥生</button>
-        <button class="chip on" data-key="坂"><span class="mk saka" data-icon="saka"></span>坂の名前</button>
-        <button class="chip on" data-key="谷"><span class="mk tani" data-icon="tani"></span>谷と川の跡</button>
+        <button class="chip on" data-key="谷"><span class="mk tani" data-icon="tani"></span>谷と坂</button>
       </div>
     </section>
     <section>
@@ -158,7 +165,6 @@
     <section>
       <details>
         <summary>表示の設定・位置を直す</summary>
-        <p class="note" id="osmStatus">坂の線：読み込み中…</p>
         <div class="btns">
           <button id="editBtn">位置を直すモード</button>
           <button id="hereBtn" disabled>選んだしるしを今いる場所へ</button>
@@ -172,7 +178,7 @@
           <output id="exOut">3倍</output>
         </div>
       </details>
-      <p class="note">色分けは「今の標高データで海面を上げた」推定です。下町は地盤沈下と盛土で、縄文時代の地面の高さと違います。遺跡は各区の遺跡一覧から。位置は丁目・番の代表点の目安で、遺跡の範囲そのものではありません。坂と谷の名前の由来は、坂の標識などに伝わる説で、諸説あります。地図・標高：国土地理院</p>
+      <p class="note">色分けは「今の標高データで海面を上げた」推定です。下町は地盤沈下と盛土で、縄文時代の地面の高さと違います。遺跡は各区の遺跡一覧から。位置は丁目・番の代表点の目安で、遺跡の範囲そのものではありません。谷と坂の名前の由来は、坂の標識などに伝わる説で、諸説あります。谷のしるしは、だいたいの位置です。地図・標高：国土地理院</p>
     </section>
   </div>
 </div>
@@ -295,7 +301,7 @@
   const $ = id => document.getElementById(id);
   // しるしと吹き出しの共通部品
   const allMarkers = [];
-  const shown = new Set(['旧', '縄', '弥', '坂', '谷']);
+  const shown = new Set(['旧', '縄', '弥', '谷']);
   const ERA = {旧: '旧石器', 縄: '縄文', 弥: '弥生'};
   const ECLS = {旧: 'kyu', 縄: 'jo', 弥: 'ya'};
   const el$ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -506,69 +512,78 @@
   const SB = '文京区教育委員会の坂の標識（各坂の案内板）';
   const FC = '文京区フィルムコミッションの坂の紹介';
   const SLOPES = [
-    {n: '菊坂', y: 'きくざか', ll: [139.758118, 35.710117], p: '本郷五丁目の代表点', a: '本郷四・五丁目の境',
+    {v: '菊坂の谷', n: '菊坂', y: 'きくざか', ll: [139.758118, 35.710117], p: '本郷五丁目の代表点', a: '本郷四・五丁目の境',
       t: '江戸時代の地誌『御府内備考』に、このあたり一帯に菊畑があって菊づくりの人が多く住み、坂を菊坂と呼んだと書かれています。由来のはっきりした坂です。',
       g: '本郷台地を刻んだ細長い谷の底を通る長い坂。両側の台地から炭団坂・鐙坂・本妙寺坂・梨木坂などが、この谷へ下りてきます。', s: SB},
-    {n: '炭団坂', y: 'たどんざか', ll: [139.75621, 35.70948], a: '本郷四丁目32番と35番の間',
+    {v: '菊坂の谷', n: '炭団坂', y: 'たどんざか', ll: [139.75621, 35.70948], a: '本郷四丁目32番と35番の間',
       t: '炭団（炭の粉を丸めた燃料）を売る人が多かったから、または切り立った急な坂で転び落ちる人がいたから、といわれます。',
       g: '本郷台地から菊坂の谷へ下る、長さ約35mの急な石段。坂の上には文京ふるさと歴史館があります。', s: SB + '／' + FC},
-    {n: '鐙坂', y: 'あぶみざか', ll: [139.755722, 35.709843], a: '本郷四丁目20番と31番の間',
+    {v: '菊坂の谷', n: '鐙坂', y: 'あぶみざか', ll: [139.755722, 35.709843], a: '本郷四丁目20番と31番の間',
       t: '鐙（あぶみ＝馬具）をつくる職人の子孫が住んでいたから（『江戸志』）、坂の形が鐙に似ているから（『改撰江戸志』）、という説があります。',
       g: '本郷台地から菊坂の狭い谷へ下り、先が右にゆるく曲がる長さ33mの坂。片側は石垣で、坂の上に金田一京助・春彦の旧居跡があります。', s: SB + '／' + FC},
-    {n: '曙坂', y: 'あけぼのざか', ll: [139.754028, 35.717583], a: '西片二丁目7番と14番の間',
+    {v: '指ヶ谷', n: '曙坂', y: 'あけぼのざか', ll: [139.754028, 35.717583], a: '西片二丁目7番と14番の間',
       t: '『江戸砂子』によると、白山の東洋大学の北西あたりは俗に「鶏声ヶ窪」と呼ばれていました。明治2年（1869）に町ができたとき、鶏が暁に時を告げることから「あけぼの（曙）」を町名にし、坂の名もそこから付いたといわれます。',
       g: '西片の台地から白山側の谷へ下る、長さ約23mの急な石段。昭和22年（1947）に石段に改修されました。', s: SB + '／' + FC},
-    {n: '浄心寺坂', y: 'じょうしんじざか', ll: [139.752579, 35.720486], a: '白山一丁目34・28番と35・27番の間',
+    {v: '指ヶ谷', n: '浄心寺坂', y: 'じょうしんじざか', ll: [139.752579, 35.720486], a: '白山一丁目34・28番と35・27番の間',
       t: '坂の上（向丘）にある浄心寺から付いた名といわれます。坂下の円乗寺に八百屋お七の墓があり、「お七坂」とも呼ばれます。',
       g: '白山下（指ヶ谷の谷）から本郷台地へ上る、長さ約170mのゆるやかな坂。坂下は蓮華寺坂・薬師坂と落ち合う谷の底です。', s: SB + '／' + FC},
-    {n: '庚申坂', y: 'こうしんざか', ll: [139.740891, 35.713238], a: '春日二丁目と小日向四丁目の間',
+    {v: '茗荷谷', n: '庚申坂', y: 'こうしんざか', ll: [139.740891, 35.713238], a: '春日二丁目と小日向四丁目の間',
       t: '坂の下に庚申塚（庚申信仰の石の塔）があったことから、といわれます。',
       g: '春日通りの尾根から茗荷谷の谷底へ下る、途中で折れ曲がる長さ約45mの石段。坂下で丸ノ内線のガードをくぐると、向かいの台地へ上る切支丹坂です。', s: SB + '／' + FC},
-    {n: '切支丹坂', y: 'きりしたんざか', ll: [139.738495, 35.713318], a: '小日向一丁目14番と24番の間',
+    {v: '茗荷谷', n: '切支丹坂', y: 'きりしたんざか', ll: [139.738495, 35.713318], a: '小日向一丁目14番と24番の間',
       t: '江戸時代、坂の上の小日向台に「切支丹屋敷」（捕らえたキリスト教の宣教師などを収めた屋敷。正保3年＝1646年から）があったことから。',
       g: '茗荷谷の谷底から小日向台へ上る坂。庚申坂と向かい合い、谷をはさんで台地から台地へ渡る道になっています。', s: SB},
-    {n: '鷺坂', y: 'さぎざか', ll: [139.732758, 35.711212], a: '小日向二丁目19・20番と21番の間',
+    {v: '神田川の谷（関口・江戸川橋）', n: '鷺坂', y: 'さぎざか', ll: [139.732758, 35.711212], a: '小日向二丁目19・20番と21番の間',
       t: '近くに住んだ文人たちが、万葉集の「山城の久世の鷺坂」の歌にちなんで名づけたと伝わります。坂の角に由来の案内板があります。',
       g: '小日向台から神田川（江戸川）沿いの低地へ下る、途中で鋭く曲がる長さ約70mの急坂。石垣が残り、2008年に文京区都市景観賞を受けました。', s: SB + '／' + FC},
-    {n: '胸突坂', y: 'むなつきざか', ll: [139.72467, 35.713329], a: '関口二丁目と目白台一丁目の間',
+    {v: '神田川の谷（関口・江戸川橋）', n: '胸突坂', y: 'むなつきざか', ll: [139.72467, 35.713329], a: '関口二丁目と目白台一丁目の間',
       t: 'あまりに急で、胸を突くようにしないと上れないことから。急な坂によく付く名で、同じ名前の坂が各地にあります。',
       g: '神田川沿いの低地から目白台へ上る、長さ約65mの急な石段。坂下に水神社と関口芭蕉庵があり、神田川が台地を削った崖の様子がよくわかります。', s: SB + '／' + FC},
-    {n: '安藤坂', y: 'あんどうざか', ll: [139.747726, 35.707943], a: '春日一・二丁目の境（牛天神の下）',
+    {v: '神田川の谷（関口・江戸川橋）', n: '安藤坂', y: 'あんどうざか', ll: [139.747726, 35.707943], a: '春日一・二丁目の境（牛天神の下）',
       t: '坂の西側に、江戸時代の旗本・安藤飛騨守の屋敷があったことから、といわれます。',
       g: '神田川沿いの低地から、伝通院のある小石川台地へ上る坂。坂下の牛天神（北野神社）は、弥生時代の遺跡「北野神社遺跡」でもあります。', s: SB},
-    {n: '富坂', y: 'とみざか', ll: [139.74765, 35.709442], a: '春日一丁目（富坂上）のあたり',
+    {v: '小石川の谷（富坂下）', n: '富坂', y: 'とみざか', ll: [139.74765, 35.709442], a: '春日一丁目（富坂上）のあたり',
       t: '鳶（とび）が多くいたので「とび坂」と呼ばれ、それが「富坂」になったといわれます。',
       g: '春日通りが、小石川の谷（白山通り）から西の小石川台地へ上る坂。谷をはさんで東側の真砂坂と向かい合い、谷の深さが体でわかります。', s: SB},
-    {n: '善光寺坂', y: 'ぜんこうじざか', ll: [139.748734, 35.712246], a: '小石川二・三丁目の境',
+    {v: '小石川の谷（富坂下）', n: '善光寺坂', y: 'ぜんこうじざか', ll: [139.748734, 35.712246], a: '小石川二・三丁目の境',
       t: '坂の途中にある善光寺（信州善光寺の別院）から。',
       g: '小石川の谷（こんにゃくえんまの方）から、伝通院のある台地へ上る坂です。', s: SB},
-    {n: '播磨坂', y: 'はりまざか', ll: [139.741989, 35.715794], a: '小石川四・五丁目の境',
+    {v: '千川の谷（小石川）', n: '播磨坂', y: 'はりまざか', ll: [139.741989, 35.715794], a: '小石川四・五丁目の境',
       t: '江戸時代、このあたりに松平播磨守（常陸府中藩）の屋敷があったことから、といわれます。坂の道そのものは戦後に造られ、今は桜並木で知られます。',
       g: '春日通りの尾根から、千川の谷（小石川植物園の方）へ下る幅の広い坂です。', s: '一般に伝わる説'},
-    {n: '湯立坂', y: 'ゆたてざか', ll: [139.740601, 35.721931], p: '坂下の簸川神社（千石二丁目10番）の代表点', a: '大塚三丁目・小石川五丁目のあたり（坂下は簸川神社の向かい）',
+    {v: '千川の谷（小石川）', n: '湯立坂', y: 'ゆたてざか', ll: [139.740601, 35.721931], p: '坂下の簸川神社（千石二丁目10番）の代表点', a: '大塚三丁目・小石川五丁目のあたり（坂下は簸川神社の向かい）',
       t: '簸川神社（氷川神社）のお祭りのとき、谷を流れる千川を渡れない人々が、この坂で湯立て（湯をわかして神に供えるお清め）をしたと伝わります。',
       g: '千川の谷から茗荷谷側の台地へ上る坂。坂下の千川は今は暗渠で、千川通りになっています。', s: SB},
-    {n: '団子坂', y: 'だんござか', ll: [139.762056, 35.725167], p: 'ウィキペディアの座標', a: '千駄木二・三丁目の境',
+    {v: '藍染川の谷（根津）', n: '団子坂', y: 'だんござか', ll: [139.762056, 35.725167], p: 'ウィキペディアの座標', a: '千駄木二・三丁目の境',
       t: '坂に団子屋があったから、という説が有力です。ほかに、団子のような石が多かった、転ぶと団子のように転がった、などの説もあります。',
       g: '本郷台地から、藍染川が流れていた根津の谷へ下る坂。坂の上に森鷗外の住まい「観潮楼」の跡（森鷗外記念館）があります。', s: 'ウィキペディア「団子坂」'},
-    {n: '大給坂', y: 'おぎゅうざか', ll: [139.762543, 35.727776], p: '千駄木三丁目の代表点', a: '千駄木三丁目',
+    {v: '藍染川の谷（根津）', n: '大給坂', y: 'おぎゅうざか', ll: [139.762543, 35.727776], p: '千駄木三丁目の代表点', a: '千駄木三丁目',
       t: '坂の上に子爵・大給家の屋敷があったことから。のちに首相となる大平正芳も住んだことがあります。',
       g: '不忍通り（藍染川の谷）から本郷台地へ上る、長さ約140mのかなり急な坂。坂上の児童遊園に大イチョウがあります。', s: FC},
-    {n: '動坂', y: 'どうざか', ll: [139.76001, 35.730949], p: '千駄木四丁目の代表点', a: '本駒込四丁目と千駄木四丁目の境',
+    {v: '藍染川の谷（根津）', n: '動坂', y: 'どうざか', ll: [139.76001, 35.730949], p: '千駄木四丁目の代表点', a: '本駒込四丁目と千駄木四丁目の境',
       t: '『江戸名所図会』に、「不動坂」を略した名で、不動堂があった場所だとあります。',
       g: '本郷台地から藍染川（谷田川）の谷へ下る坂。坂の上の台地には、旧石器から弥生までの暮らしの跡「動坂遺跡」があります。', s: '『江戸名所図会』（東京坂道のサイトで確認）'},
-    {n: '異人坂', y: 'いじんざか', ll: [139.764023, 35.717571], a: '弥生二丁目13番の北側',
+    {v: '藍染川の谷（根津）', n: '異人坂', y: 'いじんざか', ll: [139.764023, 35.717571], a: '弥生二丁目13番の北側',
       t: '明治のころ、坂の上の東京大学にいた外国人の先生たちが、この坂を通って根津や上野へ出かけたことから、と伝わります。',
       g: '本郷台地（向ヶ岡）から根津の谷へ下る長さ約110mの坂。すぐ近くの向ヶ岡で、のちに「弥生式土器」と名付けられた壺が見つかりました。', s: SB + '／' + FC},
-    {n: 'お化け階段', ll: [139.761444, 35.718113], a: '弥生二丁目18番と19番の間',
+    {v: '藍染川の谷（根津）', n: 'お化け階段', ll: [139.761444, 35.718113], a: '弥生二丁目18番と19番の間',
       t: '上りと下りで段数がちがって数えられる、という話からこう呼ばれています（全40段）。',
       g: '根津の谷から本郷台地へ上る、途中で折れ曲がる階段。台地の縁の急な斜面がよくわかります。', s: FC},
-    {n: '無縁坂', y: 'むえんざか', ll: [139.765457, 35.708893], p: '湯島四丁目の代表点', a: '湯島四丁目（旧岩崎邸庭園の北側）',
+    {v: '藍染川の谷（根津）', n: '無縁坂', y: 'むえんざか', ll: [139.765457, 35.708893], p: '湯島四丁目の代表点', a: '湯島四丁目（旧岩崎邸庭園の北側）',
       t: '坂の上に無縁寺があったから、という説があります。森鷗外の小説『雁』の舞台です。',
       g: '本郷台地の東の縁から、不忍池の低地へ下る坂。不忍池のあたりは、縄文の海の入り江が残った場所と考えられています。', s: '一般に伝わる説'}
   ];
   // 谷と川の跡
   const VALLEYS = [
+    {n: '菊坂の谷', y: 'きくざか', ll: [139.757, 35.7099], p: '本郷四・五丁目の境のあたり', a: '本郷四・五丁目の境（菊坂の通り）',
+      t: '谷の底を通る菊坂の名から。江戸時代の地誌『御府内備考』に、このあたりに菊畑があったと書かれています。',
+      g: '本郷台地を刻んだ細長い谷。両側の台地から、石段や急な坂がいくつもこの谷へ下りてきます。谷を見下ろす本郷の台地の上には、旧石器から弥生までの「真砂町遺跡」があります。', s: SB},
+    {n: '小石川の谷（富坂下）', y: 'こいしかわ', ll: [139.7525, 35.7095], p: '春日駅・富坂下のあたり', a: '白山通り・春日通りの交わるあたり（春日一丁目・小石川二丁目）',
+      t: '千川（小石川）が流れた谷。今は白山通りの下を暗渠が通り、川の名は「小石川」の地名に残っています。',
+      g: '春日通りがこの谷をまたぎます。西の富坂と東の真砂坂を歩くと、谷の深さが体でわかります。谷の南には、旧石器から弥生までの「春日町遺跡」（小石川後楽園のあたり）があります。', s: '文京区町会連合会記念誌（礫川地区）ほか'},
+    {n: '神田川の谷（関口・江戸川橋）', y: 'かんだがわ', ll: [139.7275, 35.7105], p: '江戸川公園のあたり', a: '関口・水道（神田川ぞい）',
+      t: '神田川は、このあたりでは「江戸川」とも呼ばれていました。',
+      g: '神田川が武蔵野台地を削ってできた谷。北側の目白台・小日向台は崖になっていて、急な坂や石段で谷へ下ります。崖の下には湧き水が出る場所があります。', s: '一般に伝わる説'},
     {n: '指ヶ谷', y: 'さすがや', ll: [139.751373, 35.719555], p: '白山二丁目39番（白山下）の代表点', a: '白山一・二丁目（白山通り・白山下のあたり）',
       t: '三代将軍家光が鷹狩りに来たとき、「あの谷にもやがて人家ができるだろう」と指さしたことから、と伝わります（指ヶ谷町会）。',
       g: '白山通りが通る細い谷。白山下は、浄心寺坂・蓮華寺坂・薬師坂の三つの坂が下りてくる谷の底です。谷のまわりには縄文・弥生の「指ヶ谷町遺跡」があります。', s: '文京区町会連合会『六十年のあゆみ』（文京区のサイト）'},
@@ -649,23 +664,32 @@
     addMarker({cls: ECLS[main] + (s.big ? ' big' : ''), icon: ECLS[main], dots: eras.filter(e => e !== main).map(e => ECLS[e]), ll, box, keys: eras, name: s.n, type: '遺跡'});
   }
 
-  const slopeRecs = [];
-  // 坂と谷（名前の由来と、地形の中での位置づけ）
-  for (const g of [...SLOPES.map(x => ({...x, kind: '坂'})), ...VALLEYS.map(x => ({...x, kind: '谷'}))]) {
-    const cls = g.kind === '坂' ? 'saka' : 'tani';
-    const box = el$('div', 'pop ' + cls);
-    box.appendChild(el$('div', 'kind', g.kind === '坂' ? '坂の名前' : '谷と川の跡'));
+  // 谷と、その谷へ下る坂。坂は位置を一つずつ確かめられないので、しるしは置かず谷の中で紹介する
+  for (const g of VALLEYS) {
+    const box = el$('div', 'pop tani');
+    box.appendChild(el$('div', 'kind', '谷と川の跡（だいたいの範囲）'));
     const h = el$('h3', null, g.n); if (g.y) h.appendChild(el$('small', null, g.y)); box.appendChild(h);
     box.appendChild(el$('div', 'meta', g.a));
     box.appendChild(el$('div', 'sub2', '名前の由来'));
     box.appendChild(el$('p', null, g.t));
-    box.appendChild(el$('div', 'sub2', g.kind === '坂' ? '地形の中のこの坂' : 'この谷の地形'));
+    box.appendChild(el$('div', 'sub2', 'この谷の地形'));
     box.appendChild(el$('p', null, g.g));
-    const hl = el$('p', 'meta'); box.appendChild(hl);
-    const walk = walkLink(g.ll); box.appendChild(walk);
-    const src = el$('div', 'src', '出典：' + g.s + '。位置は' + (g.p || '番地の代表点') + '（目安）'); box.appendChild(src);
-    const rec = addMarker({cls, icon: cls, ll: jitter(g.ll), box, keys: [g.kind], name: g.n, type: g.kind});
-    if (g.kind === '坂') slopeRecs.push({g, rec, walk, src, hl, ends: null});
+    const ss = SLOPES.filter(x => x.v === g.n);
+    if (ss.length) {
+      box.appendChild(el$('div', 'sub2', 'この谷へ下る坂'));
+      const ul = el$('ul', 'slopes');
+      for (const x of ss) {
+        const li = el$('li'); li.appendChild(el$('b', null, x.n + (x.y ? `（${x.y}）` : '')));
+        li.appendChild(el$('span', 'where', x.a)); li.appendChild(el$('span', null, x.t));
+        ul.appendChild(li);
+      }
+      box.appendChild(ul);
+      box.appendChild(el$('div', 'src', '坂の正確な場所は、現地の坂の標識で確かめてください。坂の出典：' + [...new Set(ss.map(x => x.s))].join('／')));
+    }
+    box.appendChild(walkLink(g.ll));
+    box.appendChild(el$('div', 'src', '出典：' + g.s + '。しるしの位置は' + (g.p || '代表点') + '（谷のだいたいの位置）'));
+    const rec = addMarker({cls: 'tani area', icon: 'tani', ll: g.ll, box, keys: ['谷'], name: g.n, type: '谷'});
+    rec.el.appendChild(el$('span', 'lbl', g.n.replace(/（.*?）/, '')));
   }
 
   function filterMarkers() {
@@ -677,7 +701,6 @@
       if (shown.has(k)) shown.delete(k); else shown.add(k);
       b.classList.toggle('on', shown.has(k));
       filterMarkers();
-      if (k === '坂') setSakaLines(shown.has('坂'));
       if ($('near').childElementCount) showNear();
     });
   }
@@ -782,81 +805,8 @@
   $('nearBtn').addEventListener('click', showNear);
 
 
-  // OpenStreetMapの「名前の付いた坂の道」を読み込んで、坂を線で描き、しるしを坂の真ん中に移す。
-  // 読めなかったときは番地の代表点（目安）のまま。読み込んだ線はこの端末に7日間とっておく。
-  const OSM_KEY = 'jomon_osm_saka_v1';
-  const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
-  const OSM_Q = '[out:json][timeout:25];way["highway"]["name"~"坂|階段"](35.695,139.715,35.738,139.775);out tags geom;';
-  async function loadOsmSaka() {
-    try { const c = JSON.parse(localStorage.getItem(OSM_KEY) || 'null'); if (c && Date.now() - c.t < 7 * 864e5) return c.d; } catch (e) {}
-    for (const url of OVERPASS) {
-      try {
-        const res = await fetch(url, {method: 'POST', body: 'data=' + encodeURIComponent(OSM_Q),
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'}});
-        if (!res.ok) continue;
-        const j = await res.json();
-        const d = j.elements.filter(e => e.geometry).map(e => ({names: [e.tags.name, e.tags.alt_name, e.tags.old_name].filter(Boolean).join(';'),
-          c: e.geometry.map(p => [+p.lon.toFixed(6), +p.lat.toFixed(6)])}));
-        try { localStorage.setItem(OSM_KEY, JSON.stringify({t: Date.now(), d})); } catch (e) {}
-        return d;
-      } catch (e) {}
-    }
-    return null;
-  }
-  const lenOf = c => c.slice(1).reduce((s, p, i) => s + distM(c[i], p), 0);
-  function midOf(c) {
-    const half = lenOf(c) / 2; let acc = 0;
-    for (let i = 1; i < c.length; i++) { const d = distM(c[i - 1], c[i]);
-      if (acc + d >= half) { const t = d ? (half - acc) / d : 0; return [c[i - 1][0] + (c[i][0] - c[i - 1][0]) * t, c[i - 1][1] + (c[i][1] - c[i - 1][1]) * t]; }
-      acc += d; }
-    return c[0];
-  }
-  function applyOsm(ways) {
-    const feats = [];
-    for (const r of slopeRecs) {
-      const base = r.g.n.replace(/（.*?）/g, '');
-      // 同じ名前の坂はほかにもあるので、目安の位置から600m以内の道だけを使う
-      const hit = ways.filter(w => w.names.split(';').some(x => x.replace(/\s/g, '') === base) && w.c.some(p => distM(p, r.g.ll) < 600));
-      if (!hit.length) continue;
-      const longest = hit.reduce((a, b) => lenOf(b.c) > lenOf(a.c) ? b : a);
-      const mid = midOf(longest.c);
-      // 坂の両はし：つないだ道の端点のうち、いちばん離れた2点
-      const pts = hit.flatMap(w => [w.c[0], w.c[w.c.length - 1]]);
-      let ends = [pts[0], pts[1]], best = -1;
-      for (const a of pts) for (const b of pts) { const d = distM(a, b); if (d > best) { best = d; ends = [a, b]; } }
-      r.ends = ends; r.len = Math.round(hit.reduce((s, w) => s + lenOf(w.c), 0));
-      r.rec.ll = mid; r.rec.marker.setLngLat(mid);
-      r.walk.href = `https://www.google.com/maps/dir/?api=1&destination=${mid[1].toFixed(6)},${mid[0].toFixed(6)}&travelmode=walking`;
-      r.src.textContent = '出典：' + r.g.s + '。位置と線は OpenStreetMap の道（© OpenStreetMap contributors）';
-      for (const w of hit) feats.push({type: 'Feature', properties: {name: r.g.n}, geometry: {type: 'LineString', coordinates: w.c}});
-    }
-    const data = {type: 'FeatureCollection', features: feats};
-    if (map.getSource('saka')) { map.getSource('saka').setData(data); return feats.length; }
-    map.addSource('saka', {type: 'geojson', data, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'});
-    map.addLayer({id: 'saka-case', type: 'line', source: 'saka', layout: {'line-cap': 'round', 'line-join': 'round'},
-      paint: {'line-color': '#FFFAF0', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 3, 17, 10]}});
-    map.addLayer({id: 'saka-line', type: 'line', source: 'saka', layout: {'line-cap': 'round', 'line-join': 'round'},
-      paint: {'line-color': '#7A5A3A', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1.5, 17, 6]}});
-    return feats.length;
-  }
-  function setSakaLines(on) { for (const id of ['saka-case', 'saka-line']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); }
-  // 坂のしるしを押したら、坂の上と下の標高を出す
-  function sakaHeights(r) {
-    if (!r.ends) { r.hl.textContent = ''; return; }
-    const [a, b] = r.ends.map(p => elev({lng: p[0], lat: p[1]}));
-    if (a == null || b == null) { r.hl.textContent = '坂の上と下の標高を読み込み中です。'; return; }
-    const top = Math.max(a, b), low = Math.min(a, b);
-    r.hl.textContent = `長さ 約${r.len}m｜坂の上 約${top.toFixed(1)}m → 坂の下 約${low.toFixed(1)}m（高低差 約${(top - low).toFixed(1)}m、標高データからの目安）`;
-  }
-  for (const r of slopeRecs) r.rec.el.addEventListener('click', () => sakaHeights(r));
-  map.on('load', async () => {
-    const ways = await loadOsmSaka();
-    if (!ways) { $('osmStatus').textContent = '坂の線：OpenStreetMapから読み込めませんでした（目安の位置で表示）'; applyFixes(); return; }
-    const n = applyOsm(ways);
-    setSakaLines(shown.has('坂'));
-    $('osmStatus').textContent = `坂の線：OpenStreetMapから${slopeRecs.filter(r => r.ends).length}か所の坂を読み込みました（全${slopeRecs.length}か所）。線が取れなかった坂は目安の位置です`;
-    applyFixes();
-  });
+  map.on('load', () => applyFixes());
+
   // 位置を直すモードの操作
   $('editBtn').addEventListener('click', () => {
     editing = !editing; $('editBtn').classList.toggle('on', editing);
