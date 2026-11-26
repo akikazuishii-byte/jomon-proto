@@ -76,6 +76,8 @@
   .mk.big{width:36px;height:36px;border:3px solid var(--gold)}
   .mk.big svg{width:21px;height:21px}
   .mk.hidden{display:none}
+  /* 地図の上のしるしは地図ライブラリが位置を決めるので absolute に戻す（relative だとずれて動く） */
+  .maplibregl-marker.mk{position:absolute}
   /* 吹き出し */
   .maplibregl-popup-content{font-size:13px;line-height:1.6;color:var(--ink);background:#FFFCF4;border-radius:12px;padding:0;
     box-shadow:0 6px 20px rgba(31,42,46,.25);overflow:hidden}
@@ -312,7 +314,7 @@
     el.innerHTML = iconSvg(icon) + (dots && dots.length ? '<span class="dots">' + dots.map(d => `<i class="${d}"></i>`).join('') + '</span>' : '');
     el.setAttribute('role', 'button'); el.setAttribute('aria-label', name);
     const popup = new maplibregl.Popup({offset: 14, maxWidth: '300px'}).setDOMContent(box);
-    const marker = new maplibregl.Marker({element: el}).setLngLat(ll).setPopup(popup).addTo(map);
+    const marker = new maplibregl.Marker({element: el, opacityWhenCovered: '0.55'}).setLngLat(ll).setPopup(popup).addTo(map);
     el.addEventListener('click', () => { const p = {lng: ll[0], lat: ll[1]}; showHeight(p, name + 'の'); describeTerrain(p); });
     const rec = {el, ll, name, keys, marker, cls, type};
     allMarkers.push(rec); return rec;
