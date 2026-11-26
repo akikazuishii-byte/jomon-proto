@@ -103,6 +103,15 @@
     font:700 12px/1 var(--serif);color:#7A5A3A;opacity:.92}
   .mk.cand svg{stroke:#7A5A3A}
   .mk.cand svg .f{fill:#7A5A3A}
+  .mk.visited::after{content:'✓';position:absolute;left:-6px;bottom:-6px;width:16px;height:16px;border-radius:50%;background:var(--gold);
+    color:var(--ink);font:700 11px/16px sans-serif;text-align:center;border:1.5px solid #FFFAF0}
+  .vsum{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 6px}
+  .vcell{flex:1 0 54px;background:#FFFCF4;border:1px solid var(--line);border-radius:10px;padding:5px 6px;text-align:center;line-height:1.2}
+  .vcell b{font:700 18px var(--serif);color:var(--key)} .vcell span{font-size:11px;color:var(--ink2)} .vcell small{display:block;font-size:11px;color:var(--sub)}
+  #visited .item{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+  #visited .item .nm{flex:1} #visited .item .ds{font-size:11px;color:var(--ink2)}
+  #visited .empty{font-size:12px;color:var(--ink2);margin:0}
+  button.add.vis.in{background:var(--gold);border-color:var(--gold);color:var(--ink)}
   .mk.hidden{display:none}
   /* 地図の上のしるしは地図ライブラリが位置を決めるので absolute に戻す（relative だとずれて動く） */
   .maplibregl-marker.mk{position:absolute}
@@ -143,13 +152,13 @@
   #course .empty{font-size:12px;color:var(--ink2);margin:0 0 6px}
   #course ol{list-style:none;margin:0 0 6px;padding:0}
   #course li{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
-  #course li .no{flex:0 0 22px;height:22px;border-radius:50%;background:var(--gold);color:var(--ink);font:700 12px/22px var(--serif);text-align:center}
+  #course li .no{flex:0 0 22px;height:22px;border-radius:50%;background:var(--key);color:#fff;font:700 12px/22px var(--serif);text-align:center}
   #course li .nm{flex:1}
   #course li button{min-height:30px;padding:0 9px;font-size:12px}
   #course .sum{font-size:12px;color:var(--ink2);margin:4px 0}
   button.add{display:block;width:100%;margin-top:8px;min-height:38px;background:#FFFCF4;border-color:var(--gold);font-weight:700}
-  button.add.in{background:var(--gold);border-color:var(--gold)}
-  .mk .num{position:absolute;left:-7px;top:-7px;min-width:18px;height:18px;border-radius:9px;background:var(--gold);color:var(--ink);
+  button.add.in{background:var(--key);border-color:var(--key);color:#fff}
+  .mk .num{position:absolute;left:-7px;top:-7px;min-width:18px;height:18px;border-radius:9px;background:var(--key);color:#fff;
     font:700 11px/18px var(--serif);text-align:center;border:1.5px solid #FFFAF0;padding:0 3px}
   .visit{font-size:11.5px;margin-top:6px;padding:5px 8px;border-radius:8px;background:var(--base);color:var(--ink2)}
   @media (min-width:700px){.panel{left:16px;bottom:16px;top:auto}.body{max-height:70vh}}
@@ -201,6 +210,8 @@
         <button id="viewTokyo">東京を広く</button>
       </div>
       <div id="near"></div>
+      <h2 style="margin-top:12px">制覇</h2>
+      <div id="visited"></div>
       <h2 style="margin-top:12px">コース</h2>
       <div id="course"></div>
     </section>
@@ -459,6 +470,43 @@
     else if (save) { fixes[rec.type + '|' + rec.name] = ll; try { localStorage.setItem(FIX_KEY, JSON.stringify(fixes)); } catch (e) {} }
   }
   function applyFixes() { for (const r of allMarkers) { const f = fixes[r.type + '|' + r.name]; if (f) moveTo(r, f, false); } }
+  // 制覇の記録（行ったところ）：この端末に保存。地図のしるしに印、一覧で見返せる
+  const VIS_KEY = 'jomon_visited_v1', VIS_TYPES = ['坂', '神社', '遺跡', '谷', 'スポット'];
+  let visited = {}; try { visited = JSON.parse(localStorage.getItem(VIS_KEY) || '{}'); } catch (e) {}
+  function setVisited(rec, on, auto) {
+    if (on) visited[rec.id] = visited[rec.id] || new Date().toISOString().slice(0, 10); else delete visited[rec.id];
+    try { localStorage.setItem(VIS_KEY, JSON.stringify(visited)); } catch (e) {}
+    paintVisited(rec); renderVisited();
+    if (on && auto) { const b = $('readout'); b.textContent = ''; const x = el$('b', null, `「${rec.name}」を制覇しました！`); b.appendChild(x); }
+  }
+  function paintVisited(rec) {
+    const on = !!visited[rec.id];
+    rec.el.classList.toggle('visited', on);
+    if (rec.visBtn) { rec.visBtn.textContent = on ? `制覇ずみ（${visited[rec.id]}）・取り消す` : '行った！（制覇）'; rec.visBtn.classList.toggle('in', on); }
+  }
+  function renderVisited() {
+    const box = $('visited'); if (!box) return; box.innerHTML = '';
+    const cnt = t => allMarkers.filter(m => m.type === t).length, got = t => allMarkers.filter(m => m.type === t && visited[m.id]).length;
+    const sum = el$('div', 'vsum');
+    for (const t of VIS_TYPES) { const n = cnt(t); if (!n) continue;
+      const c = el$('div', 'vcell'); c.append(el$('b', null, `${got(t)}`), el$('span', null, `／${n}`), el$('small', null, t)); sum.appendChild(c); }
+    box.appendChild(sum);
+    const list = allMarkers.filter(m => visited[m.id]).sort((a, b) => visited[b.id].localeCompare(visited[a.id]));
+    if (!list.length) { box.appendChild(el$('p', 'empty', 'しるしの吹き出しで「行った！」を押すか、現在地をオンにして近くまで行くと、自動で記録されます。')); return; }
+    const d = el$('details'); d.appendChild(el$('summary', null, `制覇したところ：${list.length}か所`));
+    for (const m of list) {
+      const it = el$('div', 'item');
+      const ic = m.el.cloneNode(true); ic.className = 'mk ' + m.cls.replace(' big', ''); ic.removeAttribute('role');
+      it.append(ic, el$('span', 'nm', m.name), el$('span', 'ds', visited[m.id]));
+      it.addEventListener('click', () => { map.flyTo({center: m.ll, zoom: 16.5, pitch: 55}); if (!m.marker.getPopup().isOpen()) m.marker.togglePopup(); });
+      d.appendChild(it);
+    }
+    box.appendChild(d);
+  }
+  // 現在地から約40m以内に来たら自動で制覇
+  function autoVisit(pos) {
+    for (const m of allMarkers) if (VIS_TYPES.includes(m.type) && !visited[m.id] && distM(pos, m.ll) < 40) setVisited(m, true, true);
+  }
   function addMarker({cls, icon, dots, ll, box, keys, name, type}) {
     const el = el$('div', 'mk ' + cls);
     el.innerHTML = iconSvg(icon) + (dots && dots.length ? '<span class="dots">' + dots.map(d => `<i class="${d}"></i>`).join('') + '</span>' : '');
@@ -472,6 +520,11 @@
     rec.addBtn = el$('button', 'add', 'コースに入れる');
     rec.addBtn.addEventListener('click', ev => { ev.stopPropagation(); toggleCourse(rec); });
     box.insertBefore(rec.addBtn, rec.walk || null);
+    if (VIS_TYPES.includes(type)) {
+      rec.visBtn = el$('button', 'add vis', '行った！（制覇）');
+      rec.visBtn.addEventListener('click', ev => { ev.stopPropagation(); setVisited(rec, !visited[rec.id]); });
+      box.insertBefore(rec.visBtn, rec.addBtn);
+    }
     // 位置を直すモードのときだけ出る道具：Googleマップで見る／座標を貼って移す
     const ft = el$('div', 'fixtools');
     ft.appendChild(el$('div', 'sub2', '位置を直す'));
@@ -497,7 +550,7 @@
     box.appendChild(ft);
     el.addEventListener('click', () => { picked = rec; $('hereBtn').disabled = !(editing && here); });
     marker.on('dragend', () => { const p = marker.getLngLat(); moveTo(rec, [+p.lng.toFixed(6), +p.lat.toFixed(6)], true); });
-    allMarkers.push(rec); return rec;
+    allMarkers.push(rec); if (rec.visBtn) paintVisited(rec); return rec;
   }
   for (const s of spots) {
     const box = el$('div', 'pop');
@@ -1441,6 +1494,7 @@
 
 
   map.on('load', () => applyFixes());
+  setTimeout(renderVisited, 0); map.on('load', renderVisited);
 
   // コース：吹き出しの「コースに入れる」で集め、番号つきで結び、Googleマップの徒歩ルートで開く
   const COURSE_KEY = 'jomon_course_v1';
@@ -1558,11 +1612,11 @@
       attribution: 'ルート：<a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap</a> contributors／FOSSGIS'});
     map.addLayer({id: 'osm-attr', type: 'circle', source: 'osmAttr'});
     map.addLayer({id: 'course-case', type: 'line', source: 'course', layout: {'line-cap': 'round', 'line-join': 'round'},
-      paint: {'line-color': '#1F2A2E', 'line-width': 7, 'line-opacity': 0.35}});
+      paint: {'line-color': '#FFFFFF', 'line-width': 9, 'line-opacity': 0.95}});
     map.addLayer({id: 'course-line', type: 'line', source: 'course', filter: ['==', ['get', 'road'], 1], layout: {'line-cap': 'round', 'line-join': 'round'},
-      paint: {'line-color': '#E2C27A', 'line-width': 4.5}});
+      paint: {'line-color': '#1B4F66', 'line-width': 5}});
     map.addLayer({id: 'course-straight', type: 'line', source: 'course', filter: ['==', ['get', 'road'], 0], layout: {'line-cap': 'round', 'line-join': 'round'},
-      paint: {'line-color': '#E2C27A', 'line-width': 4, 'line-dasharray': [1.5, 1.2]}});
+      paint: {'line-color': '#1B4F66', 'line-width': 4.5, 'line-dasharray': [1.5, 1.2]}});
     renderCourse();
   });
 
@@ -1821,6 +1875,7 @@
     showHeight(ll, '今いる場所の'); describeTerrain(ll);
     if ($('near').childElementCount) showNear();
     if (course.length && (!routeFrom || distM(routeFrom, here) > 100)) drawCourseLine();
+    autoVisit(here);
   });
   map.on('error', e => { if (e && e.error && /color-relief/.test(String(e.error.message))) readout.textContent = 'このブラウザでは色分けが表示できません。'; });
 }
