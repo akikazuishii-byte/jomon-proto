@@ -545,7 +545,7 @@
     al.appendChild(g);
   }
   // 制覇の記録（行ったところ）：この端末に保存。地図のしるしに印、一覧で見返せる
-  const VIS_KEY = 'jomon_visited_v1', VIS_TYPES = ['坂', '神社', '遺跡', '谷', 'スポット', '公園'];
+  const VIS_KEY = 'jomon_visited_v1', VIS_TYPES = ['坂', '神社', '遺跡', '谷', 'スポット'];
   let visited = {}; try { visited = JSON.parse(localStorage.getItem(VIS_KEY) || '{}'); } catch (e) {}
   function setVisited(rec, on, auto) {
     if (on) visited[rec.id] = visited[rec.id] || new Date().toISOString().slice(0, 10); else delete visited[rec.id];
