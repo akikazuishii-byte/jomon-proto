@@ -1647,7 +1647,7 @@
   function placeSlope(item, isNew) {
     const {box, x} = slopeBox(item.n);
     box.appendChild(walkLink(item.ll));
-    box.appendChild(el$('div', 'src', (x ? '出典：' + x.s + '。' : '') + (item.src === '坂学会' ? 'しるしの位置は坂学会の地図リンクの位置' : 'しるしの位置は、現地や地図で確かめて置いたもの')));
+    box.appendChild(el$('div', 'src', (x ? '出典：' + x.s + '。' : '') + (item.src === '坂学会' ? 'しるしの位置は坂学会の地図リンクの位置' : 'しるしの位置は、地図や現地で確かめた位置')));
     const chk = el$('div', 'visit'); box.appendChild(chk);
     const okb = el$('button', 'add', item.ok ? '確認ずみ（取り消す）' : 'この位置で確認した'); okb.style.display = 'none'; box.appendChild(okb);
     const del = el$('button', 'add', 'このしるしを消す'); del.style.display = 'none';
@@ -1755,13 +1755,22 @@
     };
     step();
   });
+  // 地図と照らし合わせて位置を確かめた坂（アキが確認、2026-11-26）
+  const CHECKED = {
+    '菊坂': [139.757252, 35.709405], '庚申坂': [139.740812, 35.713584], '白鷺坂': [139.735223, 35.722169],
+    '一行院坂': [139.745734, 35.724135], '無縁坂': [139.767189, 35.7104], 'お化け階段': [139.762093, 35.71846],
+    '胸突坂': [139.723467, 35.712513]
+  };
   // 坂のしるし：坂学会の地図の位置がある坂は、最初から誰にでも出す。この端末で直した・確認した・消した坂は、その記録を優先
   {
     const mine = new Map(added.map(a => [a.n, a]));
     const names = [...SLOPES.map(x => x.n), ...Object.keys(SAKA_POS)].filter((n, i, a) => a.indexOf(n) === i);
+    for (const n of Object.keys(CHECKED)) if (!names.includes(n)) names.push(n);
     for (const n of names) {
+      if (mine.has(n)) continue;
+      if (CHECKED[n]) { added.push({t: '坂', n, ll: CHECKED[n], src: '確認', ok: true, base: true}); continue; }
       const cs = slopeMeta(n).cs;
-      if (!cs || mine.has(n)) continue;
+      if (!cs) continue;
       added.push({t: '坂', n, ll: cs, src: '坂学会', base: true});
     }
     for (const it of added) if (!it.hidden) placeSlope(it, false);
