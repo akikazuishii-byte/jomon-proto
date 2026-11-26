@@ -114,6 +114,18 @@
   #near .item .ds{white-space:nowrap;color:var(--ink2);font-size:12px}
   #near .item .mk{cursor:inherit;flex:0 0 auto}
   #near .head{font-size:12px;color:var(--ink2);margin:2px 0}
+  #course .empty{font-size:12px;color:var(--ink2);margin:0 0 6px}
+  #course ol{list-style:none;margin:0 0 6px;padding:0}
+  #course li{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+  #course li .no{flex:0 0 22px;height:22px;border-radius:50%;background:var(--gold);color:var(--ink);font:700 12px/22px var(--serif);text-align:center}
+  #course li .nm{flex:1}
+  #course li button{min-height:30px;padding:0 9px;font-size:12px}
+  #course .sum{font-size:12px;color:var(--ink2);margin:4px 0}
+  button.add{display:block;width:100%;margin-top:8px;min-height:38px;background:#FFFCF4;border-color:var(--gold);font-weight:700}
+  button.add.in{background:var(--gold);border-color:var(--gold)}
+  .mk .num{position:absolute;left:-7px;top:-7px;min-width:18px;height:18px;border-radius:9px;background:var(--gold);color:var(--ink);
+    font:700 11px/18px var(--serif);text-align:center;border:1.5px solid #FFFAF0;padding:0 3px}
+  .visit{font-size:11.5px;margin-top:6px;padding:5px 8px;border-radius:8px;background:var(--base);color:var(--ink2)}
   @media (min-width:700px){.panel{left:16px;bottom:16px;top:auto}.body{max-height:70vh}}
 </style>
 </head>
@@ -161,6 +173,8 @@
         <button id="viewTokyo">東京を広く</button>
       </div>
       <div id="near"></div>
+      <h2 style="margin-top:12px">コース</h2>
+      <div id="course"></div>
     </section>
     <section>
       <details>
@@ -346,6 +360,11 @@
     const marker = new maplibregl.Marker({element: el, opacityWhenCovered: '0.55'}).setLngLat(ll).setPopup(popup).addTo(map);
     el.addEventListener('click', () => { const p = {lng: ll[0], lat: ll[1]}; showHeight(p, name + 'の'); describeTerrain(p); });
     const rec = {el, ll, name, keys, marker, cls, type, walk: box.querySelector('a.walk')};
+    rec.id = type + '|' + name;
+    rec.dest = box.dataset.dest || null;
+    rec.addBtn = el$('button', 'add', 'コースに入れる');
+    rec.addBtn.addEventListener('click', ev => { ev.stopPropagation(); toggleCourse(rec); });
+    box.insertBefore(rec.addBtn, rec.walk || null);
     el.addEventListener('click', () => { picked = rec; $('hereBtn').disabled = !(editing && here); });
     marker.on('dragend', () => { const p = marker.getLngLat(); moveTo(rec, [+p.lng.toFixed(6), +p.lat.toFixed(6)], true); });
     allMarkers.push(rec); return rec;
@@ -353,7 +372,7 @@
   for (const s of spots) {
     const box = el$('div', 'pop');
     box.append(el$('div', 'kind', s.start ? 'スタート地点' : '物語のスポット'), el$('h3', null, s.name), el$('p', null, s.text));
-    box.appendChild(walkLink(s.ll, s.dest));
+    box.appendChild(walkLink(s.ll, s.dest)); if (s.dest) box.dataset.dest = s.dest;
     if (s.src) box.appendChild(el$('div', 'src', '出典：' + s.src));
     addMarker({cls: s.start ? 'story start' : 'story', icon: s.start ? 'start' : 'story', ll: s.ll, box, keys: null, name: s.name, type: 'スポット'});
   }
@@ -664,6 +683,9 @@
       box.appendChild(el$('div', 'sub2', 'ここでの暮らし（見つかった物からの推定）'));
       const ul = el$('ul', 'life'); for (const x of life) ul.appendChild(el$('li', null, x)); box.appendChild(ul);
     }
+    if (s.dest) box.dataset.dest = s.dest;
+    box.appendChild(el$('div', 'visit', s.dest ? '見学できる場所があります（「ここまで歩く」で案内）' :
+      /包蔵地|散布地/.test(s.k) ? '地上に見学できるものはありません。土の中に遺跡が眠っている場所です（工事のときに調査されます）' : '地上に見学できるものは、ほとんどありません'));
     box.appendChild(walkLink(ll, s.dest));
     box.appendChild(el$('div', 'src', '出典：' + s.s + (s.c ? '。位置は丁目の代表点（目安）' : '')));
     addMarker({cls: ECLS[main] + (s.big ? ' big' : ''), icon: ECLS[main], dots: eras.filter(e => e !== main).map(e => ECLS[e]), ll, box, keys: eras, name: s.n, type: '遺跡'});
@@ -811,6 +833,87 @@
 
 
   map.on('load', () => applyFixes());
+
+  // コース：吹き出しの「コースに入れる」で集め、番号つきで結び、Googleマップの徒歩ルートで開く
+  const COURSE_KEY = 'jomon_course_v1';
+  let course = [];
+  const recById = id => allMarkers.find(m => m.id === id);
+  function saveCourse() { try { localStorage.setItem(COURSE_KEY, JSON.stringify(course.map(r => r.id))); } catch (e) {} }
+  function toggleCourse(rec) {
+    const i = course.indexOf(rec);
+    if (i >= 0) course.splice(i, 1); else course.push(rec);
+    saveCourse(); renderCourse();
+  }
+  const placeParam = r => encodeURIComponent(r.dest || `${r.ll[1].toFixed(6)},${r.ll[0].toFixed(6)}`);
+  function courseUrl() {
+    const last = course[course.length - 1];
+    let u = `https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${placeParam(last)}`;
+    const mid = course.slice(0, -1);
+    if (mid.length) u += '&waypoints=' + mid.map(placeParam).join('%7C');
+    return u; // 出発地は省略＝Googleマップが今いる場所から案内する
+  }
+  function sortNearest() {
+    let cur = here || (course[0] && course[0].ll); const rest = [...course], out = [];
+    while (rest.length) { let bi = 0; rest.forEach((r, i) => { if (distM(cur, r.ll) < distM(cur, rest[bi].ll)) bi = i; });
+      const r = rest.splice(bi, 1)[0]; out.push(r); cur = r.ll; }
+    course = out; saveCourse(); renderCourse();
+  }
+  function renderCourse() {
+    for (const m of allMarkers) { const n = m.el.querySelector('.num'); if (n) n.remove();
+      m.addBtn.textContent = 'コースに入れる'; m.addBtn.classList.remove('in'); }
+    course.forEach((r, i) => { r.el.appendChild(el$('span', 'num', String(i + 1)));
+      r.addBtn.textContent = `コースの${i + 1}番目（外す）`; r.addBtn.classList.add('in'); });
+    const box = $('course'); box.innerHTML = '';
+    if (!course.length) {
+      box.appendChild(el$('p', 'empty', 'しるしの吹き出しで「コースに入れる」を押すと、ここに並びます。'));
+    } else {
+      const ol = el$('ol');
+      course.forEach((r, i) => {
+        const li = el$('li'); li.append(el$('span', 'no', String(i + 1)), el$('span', 'nm', r.name));
+        const up = el$('button', null, '↑'), del = el$('button', null, '外す');
+        up.disabled = i === 0;
+        up.addEventListener('click', () => { [course[i - 1], course[i]] = [course[i], course[i - 1]]; saveCourse(); renderCourse(); });
+        del.addEventListener('click', () => toggleCourse(r));
+        li.addEventListener('click', ev => { if (ev.target.tagName !== 'BUTTON') map.flyTo({center: r.ll, zoom: 16.2, pitch: 60}); });
+        li.append(up, del); ol.appendChild(li);
+      });
+      box.appendChild(ol);
+      let d = 0; for (let i = 1; i < course.length; i++) d += distM(course[i - 1].ll, course[i].ll);
+      box.appendChild(el$('p', 'sum', `${course.length}か所・直線でつなぐと約${(d / 1000).toFixed(1)}km（道のりはこれより長くなります）。` +
+        (course.length > 10 ? '立ち寄り先が多いので、Googleマップで全部入らないことがあります。' : '')));
+    }
+    const btns = el$('div', 'btns');
+    if (course.length) {
+      const go = el$('a', 'walk', 'このコースで歩く（Googleマップ）'); go.href = courseUrl(); go.target = '_blank'; go.rel = 'noopener';
+      box.appendChild(go);
+      const so = el$('button', null, '近い順に並べる'); so.addEventListener('click', sortNearest);
+      const cl = el$('button', null, '空にする'); cl.addEventListener('click', () => { course = []; saveCourse(); renderCourse(); });
+      btns.append(so, cl);
+    }
+    for (const c of COURSES) {
+      const b = el$('button', null, 'おすすめ：' + c.name);
+      b.addEventListener('click', () => { course = c.ids.map(recById).filter(Boolean); saveCourse(); renderCourse();
+        const ll = course.map(r => r.ll); map.fitBounds([[Math.min(...ll.map(p => p[0])), Math.min(...ll.map(p => p[1]))],
+          [Math.max(...ll.map(p => p[0])), Math.max(...ll.map(p => p[1]))]], {padding: 60, pitch: 55}); });
+      btns.appendChild(b);
+    }
+    box.appendChild(btns);
+    const data = {type: 'FeatureCollection', features: course.length > 1 ? [{type: 'Feature', properties: {},
+      geometry: {type: 'LineString', coordinates: course.map(r => r.ll)}}] : []};
+    if (map.getSource && map.getSource('course')) map.getSource('course').setData(data);
+  }
+  // おすすめコース（スポットの名前で指定）
+  const COURSES = [
+    {name: '千石から白山・指ヶ谷・植物園へ', ids: ['スポット|千石', 'スポット|白山神社', '谷|指ヶ谷', '遺跡|指ヶ谷町', 'スポット|小石川植物園', '谷|千川の谷（小石川）']}
+  ];
+  try { course = JSON.parse(localStorage.getItem(COURSE_KEY) || '[]').map(recById).filter(Boolean); } catch (e) {}
+  renderCourse();
+  map.on('load', () => {
+    map.addSource('course', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addLayer({id: 'course-line', type: 'line', source: 'course', layout: {'line-cap': 'round', 'line-join': 'round'},
+      paint: {'line-color': '#E2C27A', 'line-width': 4, 'line-dasharray': [1.5, 1.2], 'line-opacity': 0.95}});
+    renderCourse();
+  });
 
   // 位置を直すモードの操作
   $('editBtn').addEventListener('click', () => {
