@@ -430,7 +430,7 @@
     const a = el$('a', 'walk', dest ? 'ここまで歩く（Googleマップ・入口へ）' : 'ここまで歩く（Googleマップ）');
     a.href = `https://www.google.com/maps/dir/?api=1&destination=${dest ? encodeURIComponent(dest) : ll[1].toFixed(6) + ',' + ll[0].toFixed(6)}&travelmode=walking`;
     if (dest) a.dataset.fixed = '1';
-    a.target = '_blank'; a.rel = 'noopener'; return a;
+    a.target = 'gmap'; a.referrerPolicy = 'no-referrer'; return a;
   }
   // しるしの絵（白い線画）。旧石器＝尖頭器（石の槍先）、縄文＝縄文土器（炎のような口の深鉢）、弥生＝壺、
   // 坂＝斜面と石段、谷＝谷と流れ、物語＝渦巻き、スタート＝足あと
@@ -476,7 +476,7 @@
     const ft = el$('div', 'fixtools');
     ft.appendChild(el$('div', 'sub2', '位置を直す'));
     const gm = el$('a', 'gm', 'Googleマップでこの場所を見る');
-    gm.target = '_blank'; gm.rel = 'noopener';
+    gm.target = 'gmap'; gm.referrerPolicy = 'no-referrer';
     const setGm = () => { gm.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(rec.dest || (type === '遺跡' || type === '谷' ? `${rec.ll[1].toFixed(6)},${rec.ll[0].toFixed(6)}` : name)); };
     setGm(); gm.addEventListener('click', setGm);
     const row = el$('div', 'pasterow');
@@ -1307,7 +1307,7 @@
         const li = el$('li'); li.appendChild(el$('b', null, x.n + (x.y ? `（${x.y}）` : '')));
         li.appendChild(el$('span', 'where', x.a)); li.appendChild(el$('span', null, x.t));
         const k = sakaInfo(x.n);
-        if (k) { const l = el$('a', 'sakalink', '坂学会のページ'); l.href = SAKA_URL(k[0]); l.target = '_blank'; l.rel = 'noopener'; li.appendChild(l); }
+        if (k) { const l = el$('a', 'sakalink', '坂学会のページ'); l.href = SAKA_URL(k[0]); l.target = 'sakagakkai'; li.appendChild(l); }
         ul.appendChild(li);
       }
       box.appendChild(ul);
@@ -1498,7 +1498,7 @@
       box.appendChild(st);
     }
     if (course.length) {
-      const go = el$('a', 'walk', 'このコースで歩く（Googleマップ）'); go.href = courseUrl(); go.target = '_blank'; go.rel = 'noopener';
+      const go = el$('a', 'walk', 'このコースで歩く（Googleマップ）'); go.href = courseUrl(); go.target = 'gmap'; go.referrerPolicy = 'no-referrer';
       box.appendChild(go);
       const so = el$('button', null, '近い順に並べる'); so.addEventListener('click', sortNearest);
       const cl = el$('button', null, '空にする'); cl.addEventListener('click', () => { course = []; saveCourse(); renderCourse(); });
@@ -1610,7 +1610,7 @@
       box.appendChild(el$('p', null, '名前の由来は、これから調べてのせます。'));
     }
     const k = sakaInfo(n);
-    if (k) { const l = el$('a', 'sakalink', '坂学会のページ（くわしい説明と標識）'); l.href = SAKA_URL(k[0]); l.target = '_blank'; l.rel = 'noopener'; box.appendChild(l); }
+    if (k) { const l = el$('a', 'sakalink', '坂学会のページ（くわしい説明と標識）'); l.href = SAKA_URL(k[0]); l.target = 'sakagakkai'; box.appendChild(l); }
     return {box, x};
   }
   // 置いた坂の自動チェック：まわり約40mの標高から、坂になっているか・どちらへ上るかを調べる
@@ -1682,7 +1682,7 @@
       if (x.m) box.appendChild(el$('p', null, '目印：' + x.m));
       box.appendChild(el$('p', 'meta', x.a));
       const k = sakaInfo(x.n);
-      if (k) { const l = el$('a', 'sakalink', '坂学会のページで目印を見る'); l.href = SAKA_URL(k[0]); l.target = '_blank'; l.rel = 'noopener'; box.appendChild(l); }
+      if (k) { const l = el$('a', 'sakalink', '坂学会のページで目印を見る'); l.href = SAKA_URL(k[0]); l.target = 'sakagakkai'; box.appendChild(l); }
       box.appendChild(el$('div', 'fixhelp', 'このしるしをドラッグして坂の場所に置くと、確定します。今の場所で合っていれば下のボタンで確定。'));
       const ok = el$('button', 'add', 'この位置で確定'); box.appendChild(ok);
       const m = new maplibregl.Marker({element: el, draggable: true}).setLngLat(ll0).setPopup(new maplibregl.Popup({offset: 14, maxWidth: '300px'}).setDOMContent(box)).addTo(map);
@@ -1786,7 +1786,7 @@
     if (xs && (xs.cs || xs.c || xs.ll)) { const b = el$('button', null, 'このあたりへ地図を動かす'); b.style.cssText = 'min-height:30px;font-size:12px;margin:4px 0';
       b.addEventListener('click', () => map.easeTo({center: xs.cs || xs.c || xs.ll, zoom: 17.2, pitch: 0, bearing: 0})); h.appendChild(b); }
     if (k) { h.append(el$('span', null, `所在地：文京区${k[4]}${k[3] ? '／別名 ' + k[3] : ''}　`));
-      const l = el$('a', 'sakalink', '坂学会のページで目印を見る'); l.href = SAKA_URL(k[0]); l.target = '_blank'; l.rel = 'noopener'; h.appendChild(l); }
+      const l = el$('a', 'sakalink', '坂学会のページで目印を見る'); l.href = SAKA_URL(k[0]); l.target = 'sakagakkai'; h.appendChild(l); }
   }
   $('addName').addEventListener('change', showAddHint); showAddHint();
   let placing = false;
