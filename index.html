@@ -289,8 +289,8 @@
       text: 'スタート地点。本郷台の上。ここから坂を下ると谷へ入ります。'},
     {name: '白山神社', ll: [139.750809, 35.722187],
       text: '白山から千石方向へ続く谷（指ヶ谷・鶏声ヶ窪）のそば。', src: '『東京「スリバチ」地形散歩』本郷エリア'},
-    {name: '小石川植物園', ll: [139.7473, 35.7177],
-      text: '小石川の谷。千石の南を流れていた小石川は今は暗渠です。縄文の海がこの谷に入っていたかは標高で確かめます。', src: '『東京「スリバチ」地形散歩』コラム'},
+    {name: '小石川植物園', ll: [139.7473, 35.7177], dest: '小石川植物園正門受付発売所',
+      text: '入口は正門（「ここまで歩く」は正門の受付へ案内します）。小石川の谷。千石の南を流れていた小石川は今は暗渠です。縄文の海がこの谷に入っていたかは標高で確かめます。', src: '『東京「スリバチ」地形散歩』コラム'},
     {name: '護国寺', ll: [139.7273, 35.7186],
       text: '境内が縄文の埋蔵文化財包蔵地。前の地下約25mからセイウチの頭骨が見つかっています。', src: '文京区遺跡一覧／貝塚爽平『東京の自然史』'},
     {name: '根津神社', ll: [139.760773, 35.720383],
@@ -305,9 +305,11 @@
   const ERA = {旧: '旧石器', 縄: '縄文', 弥: '弥生'};
   const ECLS = {旧: 'kyu', 縄: 'jo', 弥: 'ya'};
   const el$ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-  function walkLink(ll) {
-    const a = el$('a', 'walk', 'ここまで歩く（Googleマップ）');
-    a.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
+  // dest があれば、座標ではなく名前でGoogleマップに案内させる（入口に案内したいとき）
+  function walkLink(ll, dest) {
+    const a = el$('a', 'walk', dest ? 'ここまで歩く（Googleマップ・入口へ）' : 'ここまで歩く（Googleマップ）');
+    a.href = `https://www.google.com/maps/dir/?api=1&destination=${dest ? encodeURIComponent(dest) : ll[1].toFixed(6) + ',' + ll[0].toFixed(6)}&travelmode=walking`;
+    if (dest) a.dataset.fixed = '1';
     a.target = '_blank'; a.rel = 'noopener'; return a;
   }
   // しるしの絵（白い線画）。旧石器＝尖頭器（石の槍先）、縄文＝縄文土器（炎のような口の深鉢）、弥生＝壺、
@@ -329,7 +331,7 @@
   let editing = false, picked = null;
   function moveTo(rec, ll, save) {
     rec.ll = ll; rec.marker.setLngLat(ll);
-    if (rec.walk) rec.walk.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
+    if (rec.walk && !rec.walk.dataset.fixed) rec.walk.href = `https://www.google.com/maps/dir/?api=1&destination=${ll[1].toFixed(6)},${ll[0].toFixed(6)}&travelmode=walking`;
     if (save) { fixes[rec.type + '|' + rec.name] = ll; try { localStorage.setItem(FIX_KEY, JSON.stringify(fixes)); } catch (e) {} }
   }
   function applyFixes() { for (const r of allMarkers) { const f = fixes[r.type + '|' + r.name]; if (f) moveTo(r, f, false); } }
@@ -348,7 +350,7 @@
   for (const s of spots) {
     const box = el$('div', 'pop');
     box.append(el$('div', 'kind', s.start ? 'スタート地点' : '物語のスポット'), el$('h3', null, s.name), el$('p', null, s.text));
-    box.appendChild(walkLink(s.ll));
+    box.appendChild(walkLink(s.ll, s.dest));
     if (s.src) box.appendChild(el$('div', 'src', '出典：' + s.src));
     addMarker({cls: s.start ? 'story start' : 'story', icon: s.start ? 'start' : 'story', ll: s.ll, box, keys: null, name: s.name, type: 'スポット'});
   }
