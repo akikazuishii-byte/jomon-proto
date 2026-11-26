@@ -133,7 +133,9 @@
   #near .item .nm{flex:1}
   #near .item .ds{white-space:nowrap;color:var(--ink2);font-size:12px}
   #near .item .mk{cursor:inherit;flex:0 0 auto}
-  #todoList{max-height:40vh;overflow:auto;margin:6px 0}
+  #todoList{margin:6px 0}
+  body.editing .panel{max-width:460px}
+  body.editing .body{max-height:calc(100vh - 110px)}
   #todoList summary{font-size:12.5px}
   #todoList .item,#near .item{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
   #todoList .head{font-size:12px;color:var(--ink2);margin:2px 0}
@@ -962,7 +964,7 @@
     {v: '藍染川の谷（根津）', n: 'お化け階段', ll: [139.761444, 35.718113], a: '弥生二丁目18番と19番の間',
       t: '上りと下りで段数がちがって数えられる、という話からこう呼ばれています（全40段）。',
       g: '根津の谷から本郷台地へ上る、途中で折れ曲がる階段。台地の縁の急な斜面がよくわかります。', s: FC},
-    {v: '藍染川の谷（根津）', n: '無縁坂', y: 'むえんざか', ll: [139.765457, 35.708893], p: '湯島四丁目の代表点', a: '湯島四丁目（旧岩崎邸庭園の北側）',
+    {v: '藍染川の谷（根津）', n: '無縁坂', cs: [139.766124, 35.710463], dir: 270, y: 'むえんざか', ll: [139.765457, 35.708893], p: '湯島四丁目の代表点', a: '湯島四丁目（旧岩崎邸庭園の北側）',
       t: '坂の上に無縁寺があったから、という説があります。森鷗外の小説『雁』の舞台です。',
       g: '本郷台地の東の縁から、不忍池の低地へ下る坂。不忍池のあたりは、縄文の海の入り江が残った場所と考えられています。', s: '一般に伝わる説'}
   ];
