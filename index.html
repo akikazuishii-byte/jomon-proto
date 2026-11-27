@@ -165,6 +165,10 @@
   #near .item .ds{white-space:nowrap;color:var(--ink2);font-size:12px}
   #near .item .mk{cursor:inherit;flex:0 0 auto}
   #todoList{margin:6px 0}
+  .maplibregl-user-location-dot .hd{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none;display:none}
+  .maplibregl-user-location-dot .hd::before{content:"";position:absolute;left:-24px;top:-58px;width:48px;height:49px;
+    background:linear-gradient(to top,rgba(27,79,102,.75),rgba(27,79,102,.35) 55%,rgba(27,79,102,0));clip-path:polygon(50% 100%,4% 0,96% 0)}
+  .maplibregl-user-location-dot .hd.on{display:block}
   #rev{margin-bottom:8px}
   #revNow{background:#FFFCF4;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.55}
   #revNow b{font:700 16px/1.4 var(--serif);color:var(--saka)}
@@ -2165,8 +2169,45 @@
     $('addMsg').textContent = `「${n}」を置きました。ずれていたらドラッグで直せます。`;
   });
   map.on('click', e => { if (editing && placing) return; showHeight(e.lngLat, 'この場所の'); describeTerrain(e.lngLat); });
+
+  // 進行方向：スマホの方位センサー（なければGPSの進む向き）で、現在地の点に向きの扇を出す
+  let heading = null, compassOK = false;
+  function paintHeading() {
+    const dot = document.querySelector('.maplibregl-user-location-dot'); if (!dot) return;
+    let hd = dot.querySelector('.hd'); if (!hd) { hd = document.createElement('div'); hd.className = 'hd'; dot.appendChild(hd); }
+    hd.classList.toggle('on', heading != null);
+    if (heading != null) hd.style.transform = 'rotate(' + (heading - map.getBearing()) + 'deg)';
+  }
+  function onOrient(e) {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
+    else if (e.absolute && typeof e.alpha === 'number') h = 360 - e.alpha;
+    if (h == null) return;
+    const so = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+    h = (h + so + 360) % 360;
+    if (heading == null) heading = h;
+    else { let d = ((h - heading + 540) % 360) - 180; heading = (heading + d * 0.3 + 360) % 360; }
+    compassOK = true; paintHeading();
+  }
+  let orientOn = false;
+  function startCompass() {
+    if (orientOn) return; orientOn = true;
+    const go = () => {
+      if ('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', onOrient);
+      else window.addEventListener('deviceorientation', onOrient);
+    };
+    try {
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(r => { if (r === 'granted') go(); }).catch(() => {});
+      } else go();
+    } catch (e) {}
+  }
+  { const b = document.querySelector('.maplibregl-ctrl-geolocate'); if (b) b.addEventListener('click', startCompass); }
+  map.on('rotate', paintHeading);
   geo.on('geolocate', e => {
     here = [e.coords.longitude, e.coords.latitude];
+    if (!compassOK && e.coords.heading != null && !isNaN(e.coords.heading) && (e.coords.speed || 0) > 0.5) heading = e.coords.heading;
+    requestAnimationFrame(paintHeading);
     $('hereBtn').disabled = !(editing && picked);
     const ll = {lng: here[0], lat: here[1]};
     showHeight(ll, '今いる場所の'); describeTerrain(ll);
