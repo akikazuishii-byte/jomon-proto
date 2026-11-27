@@ -370,6 +370,8 @@
   }
 
   let sea = 4, ex = 3, exEff = 3;
+  // 道の太さの係数（道の種類ごと）
+  const ROADW = ['match', ['get', 'vt_rdctg'], ['国道', '主要道路', '高速自動車国道等'], 1.9, '都道府県道', 1.5, '市区町村道等', 1, 0.75];
 
   const map = new maplibregl.Map({
     container: 'map',
@@ -381,6 +383,8 @@
           attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>'},
         pale: {type: 'raster', tiles: [GSI + 'pale/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 18,
           attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>'},
+        roads: {type: 'vector', tiles: ['https://cyberjapandata.gsi.go.jp/xyz/optimal_bvmap-v1/{z}/{x}/{y}.pbf'], minzoom: 4, maxzoom: 16,
+          attribution: '<a href="https://github.com/gsi-cyberjapan/optimal_bvmap" target="_blank">国土地理院最適化ベクトルタイル</a>'},
         terrainSrc: demSource(),
         reliefSrc: demSource(),
         shadeSrc: demSource()
@@ -392,6 +396,18 @@
           paint: {'color-relief-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.75, 15, 0.55, 17, 0.35], 'color-relief-color': reliefColors(sea)}},
         {id: 'shade', type: 'hillshade', source: 'shadeSrc',
           paint: {'hillshade-exaggeration': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 15, 0.75, 17, 0.9], 'hillshade-shadow-color': '#3b3424', 'hillshade-highlight-color': '#ffffff'}},
+        // 道：地理院の道路中心線を、色分けの地形の上に白い線（ふち取り付き）で重ねる。トンネルは出さない
+        {id: 'road-case', type: 'line', source: 'roads', 'source-layer': 'RdCL', minzoom: 12.5,
+          filter: ['!', ['in', ['get', 'vt_code'], ['literal', [2703, 2704, 2713, 2714, 2723, 2724, 2733, 2734]]]],
+          layout: {'line-join': 'round', 'line-cap': 'round'},
+          paint: {'line-color': '#7d6c4c', 'line-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0, 13.5, 0.55, 16, 0.7],
+            'line-width': ['interpolate', ['exponential', 1.6], ['zoom'], 13, ['*', ROADW, 0.9], 15, ['*', ROADW, 2.4], 17, ['*', ROADW, 6.2], 19, ['*', ROADW, 15]]}},
+        {id: 'road', type: 'line', source: 'roads', 'source-layer': 'RdCL', minzoom: 12.5,
+          filter: ['!', ['in', ['get', 'vt_code'], ['literal', [2703, 2704, 2713, 2714, 2723, 2724, 2733, 2734]]]],
+          layout: {'line-join': 'round', 'line-cap': 'round'},
+          paint: {'line-color': ['match', ['get', 'vt_rdctg'], ['国道', '主要道路'], '#fff6e2', '#ffffff'],
+            'line-opacity': ['interpolate', ['linear'], ['zoom'], 12.5, 0, 13.5, 0.85, 16, 0.95],
+            'line-width': ['interpolate', ['exponential', 1.6], ['zoom'], 13, ['*', ROADW, 0.5], 15, ['*', ROADW, 1.6], 17, ['*', ROADW, 4.8], 19, ['*', ROADW, 12.5]]}},
         {id: 'std', type: 'raster', source: 'std', layout: {visibility: 'none'}}
       ],
       terrain: {source: 'terrainSrc', exaggeration: ex}
@@ -1833,7 +1849,7 @@
     renderTodo();
     // 直すときは、建物や神社の記号まで載った平らな標準地図にする（立体だとずれて見えるため）
     if (map.getLayer('std')) map.setLayoutProperty('std', 'visibility', editing ? 'visible' : 'none');
-    for (const id of ['relief', 'shade']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', editing ? 'none' : 'visible');
+    for (const id of ['relief', 'shade', 'road', 'road-case']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', editing ? 'none' : 'visible');
     if (editing) { map.setTerrain({source: 'terrainSrc', exaggeration: 1}); exEff = 1; map.easeTo({pitch: 0, bearing: 0, zoom: Math.max(map.getZoom(), 16.5)}); }
     else { exEff = null; applyEx(); map.easeTo({pitch: 55}); }
   });
