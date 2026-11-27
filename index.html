@@ -1709,6 +1709,8 @@
 
 
   map.on('load', () => applyFixes());
+  // 立ち上げたら現在地から始める（許可されなかったときは、いつもの文京区の眺めのまま）
+  map.on('load', () => { try { if (navigator.geolocation) geo.trigger(); } catch (e) {} });
   setTimeout(() => { renderVisited(); refreshPhotos(); }, 0); map.on('load', renderVisited);
 
   // コース：吹き出しの「コースに入れる」で集め、番号つきで結び、Googleマップの徒歩ルートで開く
