@@ -407,9 +407,14 @@
       for (const [t, d, lbl] of [['⟲', -30, '左に回す'], ['⟳', 30, '右に回す']]) {
         const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.title = lbl; b.setAttribute('aria-label', lbl);
         b.style.cssText = 'font-size:18px;line-height:1;padding:0;min-height:29px;border-radius:0;border:0;background:#fff';
-        b.addEventListener('click', () => m.easeTo({bearing: m.getBearing() + d, duration: 400}));
+        b.addEventListener('click', () => { if (typeof setHeadUp === 'function') setHeadUp(false); m.easeTo({bearing: m.getBearing() + d, duration: 400}); });
         box.appendChild(b);
       }
+      const hu = document.createElement('button'); hu.type = 'button'; hu.id = 'headUpBtn'; hu.title = '進行方向を上にする'; hu.setAttribute('aria-label', '進行方向を上にする');
+      hu.style.cssText = 'padding:0;min-height:29px;border-radius:0;border:0;background:#fff;display:flex;align-items:center;justify-content:center';
+      hu.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#1B4F66" stroke-width="2" stroke-linejoin="round"><path d="M12 3l6.5 16-6.5-3.6L5.5 19z"/></svg>';
+      hu.addEventListener('click', () => setHeadUp(!headUp));
+      box.appendChild(hu);
       return box;
     },
     onRemove() {}
@@ -2187,7 +2192,7 @@
     h = (h + so + 360) % 360;
     if (heading == null) heading = h;
     else { let d = ((h - heading + 540) % 360) - 180; heading = (heading + d * 0.3 + 360) % 360; }
-    compassOK = true; paintHeading();
+    compassOK = true; paintHeading(); followHeading();
   }
   let orientOn = false;
   function startCompass() {
@@ -2204,10 +2209,32 @@
   }
   { const b = document.querySelector('.maplibregl-ctrl-geolocate'); if (b) b.addEventListener('click', startCompass); }
   map.on('rotate', paintHeading);
+  // 進行方向を上にする：向きが変わるたびに地図を回す。指で回したり、回転ボタンを押したら解除
+  var headUp = false; let huFrame = 0;
+  function setHeadUp(on) {
+    headUp = on;
+    const b = document.getElementById('headUpBtn');
+    if (b) { b.style.background = on ? '#1B4F66' : '#fff'; b.querySelector('svg').setAttribute('stroke', on ? '#fff' : '#1B4F66'); b.querySelector('svg').setAttribute('fill', on ? '#fff' : 'none'); }
+    if (on) {
+      startCompass();
+      if (!here) { try { geo.trigger(); } catch (e) {} }
+      followHeading();
+    }
+  }
+  function followHeading() {
+    if (!headUp || heading == null || huFrame) return;
+    huFrame = requestAnimationFrame(() => {
+      huFrame = 0;
+      const d = ((heading - map.getBearing() + 540) % 360) - 180;
+      if (Math.abs(d) > 1.5) map.setBearing(heading);
+    });
+  }
+  map.on('rotatestart', e => { if (e && e.originalEvent && headUp) setHeadUp(false); });
+  { const c = document.querySelector('.maplibregl-ctrl-compass'); if (c) c.addEventListener('click', () => setHeadUp(false)); }
   geo.on('geolocate', e => {
     here = [e.coords.longitude, e.coords.latitude];
     if (!compassOK && e.coords.heading != null && !isNaN(e.coords.heading) && (e.coords.speed || 0) > 0.5) heading = e.coords.heading;
-    requestAnimationFrame(paintHeading);
+    requestAnimationFrame(paintHeading); followHeading();
     $('hereBtn').disabled = !(editing && picked);
     const ll = {lng: here[0], lat: here[1]};
     showHeight(ll, '今いる場所の'); describeTerrain(ll);
