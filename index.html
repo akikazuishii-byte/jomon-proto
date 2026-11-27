@@ -2212,20 +2212,25 @@
     else { let d = ((h - heading + 540) % 360) - 180; heading = (heading + d * 0.15 + 360) % 360; }
     compassOK = true; paintHeading(); followHeading();
   }
-  let orientOn = false;
+  // iPhoneは画面に触ったときでないと方位の許可を求められないので、最初に触ったときに始める
+  let orientOn = false, orientAsking = false;
   function startCompass() {
-    if (orientOn) return; orientOn = true;
+    if (orientOn || orientAsking) return;
     const go = () => {
+      orientOn = true;
       if ('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', onOrient);
       else window.addEventListener('deviceorientation', onOrient);
     };
     try {
       if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(r => { if (r === 'granted') go(); }).catch(() => {});
+        orientAsking = true;
+        DeviceOrientationEvent.requestPermission().then(r => { orientAsking = false; if (r === 'granted') go(); }).catch(() => { orientAsking = false; });
       } else go();
-    } catch (e) {}
+    } catch (e) { orientAsking = false; }
   }
   { const b = document.querySelector('.maplibregl-ctrl-geolocate'); if (b) b.addEventListener('click', startCompass); }
+  const firstTouch = () => { startCompass(); if (orientOn) { document.removeEventListener('touchend', firstTouch); document.removeEventListener('click', firstTouch); } };
+  document.addEventListener('touchend', firstTouch); document.addEventListener('click', firstTouch);
   map.on('rotate', paintHeading);
   // 進行方向を上にする：向きが変わるたびに地図を回す。指で回したり、回転ボタンを押したら解除
   var headUp = false; let huFrame = 0;
