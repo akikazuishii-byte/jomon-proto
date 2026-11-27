@@ -2207,7 +2207,7 @@
     const so = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
     h = (h + so + 360) % 360;
     if (heading == null) heading = h;
-    else { let d = ((h - heading + 540) % 360) - 180; heading = (heading + d * 0.3 + 360) % 360; }
+    else { let d = ((h - heading + 540) % 360) - 180; heading = (heading + d * 0.15 + 360) % 360; }
     compassOK = true; paintHeading(); followHeading();
   }
   let orientOn = false;
@@ -2237,13 +2237,21 @@
       followHeading();
     }
   }
+  // 地図はゆっくり追いかける：毎フレーム、目標の向きとの差の一部だけ回す（小さな揺れは無視）
+  let huLast = 0;
   function followHeading() {
     if (!headUp || heading == null || huFrame) return;
-    huFrame = requestAnimationFrame(() => {
+    const step = t => {
       huFrame = 0;
-      const d = ((heading - map.getBearing() + 540) % 360) - 180;
-      if (Math.abs(d) > 1.5) map.setBearing(heading);
-    });
+      if (!headUp || heading == null) return;
+      const dt = Math.min(64, huLast ? t - huLast : 16); huLast = t;
+      const cur = map.getBearing(), d = ((heading - cur + 540) % 360) - 180;
+      if (Math.abs(d) < 4) { huLast = 0; return; }
+      const k = 1 - Math.pow(0.92, dt / 16);
+      map.setBearing(cur + d * k);
+      huFrame = requestAnimationFrame(step);
+    };
+    huFrame = requestAnimationFrame(step);
   }
   map.on('rotatestart', e => { if (e && e.originalEvent && headUp) setHeadUp(false); });
   { const c = document.querySelector('.maplibregl-ctrl-compass'); if (c) c.addEventListener('click', () => setHeadUp(false)); }
