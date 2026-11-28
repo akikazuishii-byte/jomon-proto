@@ -284,7 +284,7 @@
           <p class="note" id="addMsg">位置を直すモードにすると、下調べ済みの坂が点線の「候補」として地図に出ます。候補をドラッグして坂の場所に置けば確定です。一覧にない坂は、文京区の坂127か所（坂学会の一覧）から選べます。所在地と坂学会のページで目印を確かめてから「地図をタップして置く」を押し、標識のある場所をタップしてください。置いたあともドラッグで動かせます。</p>
         </div>
         <textarea id="exportBox" style="display:none;width:100%;height:90px;font-size:11px"></textarea>
-        <p class="note" id="diag">方位：まだ使っていません（画面に触れると始まります）　・　版 2026-11-27c</p>
+        <p class="note" id="diag">方位：まだ使っていません（画面に触れると始まります）　・　版 2026-11-28a</p>
         <div class="row">
           <label for="ex" style="font-size:13px">高さの強調</label>
           <input id="ex" type="range" min="1" max="6" step="0.5" value="3">
@@ -1841,6 +1841,8 @@
   // 位置を直すモードの操作
   $('editBtn').addEventListener('click', () => {
     editing = !editing; $('editBtn').classList.toggle('on', editing);
+    // 現在地を追いかけていると、坂へ移動しても地図が現在地へ引き戻されるので、位置を直すモードでは追いかけを止める
+    if (editing) { try { const st = geo._watchState; if (st === 'ACTIVE_LOCK' || st === 'BACKGROUND' || st === 'WAITING_ACTIVE') geo.trigger(); } catch (e) {} if (typeof setHeadUp === 'function') setHeadUp(false); }
     $('editBtn').textContent = editing ? '位置を直すモード（オン）' : '位置を直すモード';
     for (const r of allMarkers) r.marker.setDraggable(editing);
     $('hereBtn').disabled = !(editing && here && picked);
@@ -2216,7 +2218,7 @@
   }
   // iPhoneは画面に触ったときでないと方位の許可を求められないので、最初に触ったときに始める
   let orientOn = false, orientAsking = false;
-  const diag = t => { const d = document.getElementById('diag'); if (d) d.textContent = '方位：' + t + '　・　版 2026-11-27c'; };
+  const diag = t => { const d = document.getElementById('diag'); if (d) d.textContent = '方位：' + t + '　・　版 2026-11-28a'; };
   function startCompass() {
     if (orientOn || orientAsking) return;
     const go = () => {
