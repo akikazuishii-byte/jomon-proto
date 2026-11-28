@@ -273,7 +273,8 @@
               <p class="note">Googleマップは別のタブに開きます（このしるしの位置にピン）。ずれていたら、しるしをドラッグして直してから「OK・次へ」。</p>
             </div>
           </div>
-          <button id="bulkBtn" style="width:100%;margin-bottom:8px">全部の坂を自動チェックする</button>
+          <details style="margin-bottom:8px"><summary style="font-size:12px;color:var(--ink2)">そのほかの道具</summary>
+          <button id="bulkBtn" style="width:100%;margin:6px 0 0">全部の坂を自動チェックする（地図があちこち動きます。Googleマップは開きません）</button></details>
           <div class="pasterow">
             <select id="addName" style="flex:1;min-width:0;font-size:14px;padding:6px;border:1px solid #C9BD9C;border-radius:8px"></select>
             <button id="addBtn">地図をタップして置く</button>
@@ -284,7 +285,7 @@
           <p class="note" id="addMsg">位置を直すモードにすると、下調べ済みの坂が点線の「候補」として地図に出ます。候補をドラッグして坂の場所に置けば確定です。一覧にない坂は、文京区の坂127か所（坂学会の一覧）から選べます。所在地と坂学会のページで目印を確かめてから「地図をタップして置く」を押し、標識のある場所をタップしてください。置いたあともドラッグで動かせます。</p>
         </div>
         <textarea id="exportBox" style="display:none;width:100%;height:90px;font-size:11px"></textarea>
-        <p class="note" id="diag">方位：まだ使っていません（画面に触れると始まります）　・　版 2026-11-28c</p>
+        <p class="note" id="diag">方位：まだ使っていません（画面に触れると始まります）　・　版 2026-11-28d</p>
         <div class="row">
           <label for="ex" style="font-size:13px">高さの強調</label>
           <input id="ex" type="range" min="1" max="6" step="0.5" value="3">
@@ -1990,7 +1991,8 @@
     const noPos = SAKA_LIST.map(r => r[1]).filter(n => !placedN.has(n) && !candN.has(n) && !candN.has(n.replace(/（.*?）/, '')) && !slopeMeta(n).cs);
     groups.push(['位置の手がかりなし（名前を選んで地図をタップして置く）', noPos.map(n => ({n, ll: null, open: () => { $('addName').value = n; showAddHint(); $('addName').scrollIntoView({block: 'center'}); }}))]);
     const done = allMarkers.filter(r => r.added && (r.added.ok || r.status === 'ok')).length;
-    box.appendChild(el$('div', 'head', `確認が必要な坂（押すとその坂へ移動）　確認ずみ・向きOK：${done}本`));
+    box.appendChild(el$('div', 'head', `確認が必要な坂（押すとその坂へ移動し、Googleマップも開く）　確認ずみ・向きOK：${done}本`));
+    { const left = allMarkers.filter(r => r.type === '坂' && r.added && !r.added.ok && !r.added.hidden).length; const rb = $('revStart'); if (rb) rb.textContent = `▶ 坂を順番に確認する（残り${left}本・Googleマップと見比べる）`; }
     for (const [title, items] of groups) {
       if (!items.length) continue;
       const d = el$('details'); if (title.startsWith('位置') || title.startsWith('向きが')) d.open = true;
@@ -1998,7 +2000,7 @@
       for (const it of items) {
         const b = el$('div', 'item'); b.append(el$('span', 'mk saka'), el$('span', 'nm', it.n));
         b.firstChild.innerHTML = iconSvg('saka');
-        b.addEventListener('click', () => go(it.ll, it.open));
+        b.addEventListener('click', () => { go(it.ll, it.open); if (it.ll) openGmapAt(it.ll); });
         d.appendChild(b);
       }
       box.appendChild(d);
@@ -2052,6 +2054,10 @@
   }
   const revUrl = r => 'https://www.google.com/maps/search/?api=1&query=' + r.ll[1].toFixed(6) + ',' + r.ll[0].toFixed(6);
   // ふつうのリンクを押したのと同じ形で開く（window.open の書き方だと、ブラウザによっては新しい窓が止められる）
+  function openGmapAt(ll) {
+    const a = document.createElement('a'); a.href = 'https://www.google.com/maps/search/?api=1&query=' + ll[1].toFixed(6) + ',' + ll[0].toFixed(6); a.target = 'gmap';
+    document.body.appendChild(a); a.click(); a.remove();
+  }
   function revOpenG() {
     const r = revQ[revI]; if (!r) return;
     const a = document.createElement('a'); a.href = revUrl(r); a.target = 'gmap';
@@ -2223,7 +2229,7 @@
   }
   // iPhoneは画面に触ったときでないと方位の許可を求められないので、最初に触ったときに始める
   let orientOn = false, orientAsking = false;
-  const diag = t => { const d = document.getElementById('diag'); if (d) d.textContent = '方位：' + t + '　・　版 2026-11-28c'; };
+  const diag = t => { const d = document.getElementById('diag'); if (d) d.textContent = '方位：' + t + '　・　版 2026-11-28d'; };
   function startCompass() {
     if (orientOn || orientAsking) return;
     const go = () => {
